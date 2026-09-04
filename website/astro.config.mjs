@@ -5,16 +5,13 @@ export default defineConfig({
   site: 'https://orouta.dev',
   outDir: 'dist',
   publicDir: 'public',
+  server: { host: '0.0.0.0' },
+  preview: { host: '0.0.0.0' },
   integrations: [
     starlight({
       title: 'orouta',
       description: 'Several Ollama hosts behind one port. The model name picks the host.',
       favicon: '/favicon.ico',
-      logo: {
-        src: '../docs/logo.png',
-        alt: 'orouta',
-        replacesTitle: true,
-      },
       social: [
         {
           icon: 'github',
@@ -23,6 +20,9 @@ export default defineConfig({
         },
       ],
       customCss: ['./src/styles/starlight.css'],
+      expressiveCode: {
+        themes: ['everforest-dark', 'everforest-light'],
+      },
       sidebar: [
         {
           label: 'Start',

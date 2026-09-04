@@ -4,8 +4,8 @@
   "type": "module",
   "version": "0.1.0",
   "scripts": {
-    "dev": "node scripts/sync.mjs && astro dev",
-    "start": "node scripts/sync.mjs && astro dev",
+    "dev": "node scripts/sync.mjs && astro dev --host 0.0.0.0",
+    "start": "node scripts/sync.mjs && astro dev --host 0.0.0.0",
     "prebuild": "node scripts/sync.mjs",
     "build": "astro build",
     "preview": "astro preview",

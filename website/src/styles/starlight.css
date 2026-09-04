@@ -1,14 +1,64 @@
 :root {
-  --sl-color-accent-high: #e8dcc4;
-  --sl-color-accent: #c4a574;
-  --sl-color-accent-low: #2a3d34;
-  --sl-color-bg: #070b09;
-  --sl-color-bg-nav: #0c1210;
-  --sl-color-bg-sidebar: #0c1210;
-  --sl-color-text: #e8dcc4;
+  --sl-color-white: #e8dcc4;
+  --sl-color-gray-1: #d4cbb3;
+  --sl-color-gray-2: #b8b09a;
   --sl-color-gray-3: #8a9a8c;
+  --sl-color-gray-4: #4a5c52;
+  --sl-color-gray-5: #1e2c26;
+  --sl-color-gray-6: #0c1210;
+  --sl-color-black: #070b09;
+  --sl-color-accent-low: #1e2c26;
+  --sl-color-accent: #c4a574;
+  --sl-color-accent-high: #e8dcc4;
+  --sl-color-text: #e8dcc4;
+  --sl-color-text-accent: #c4a574;
+  --sl-color-text-invert: #e8dcc4;
+  --sl-color-bg: #070b09;
+  --sl-color-bg-nav: #070b09;
+  --sl-color-bg-sidebar: #0c1210;
+  --sl-color-bg-inline-code: #1e2c26;
+  --sl-color-bg-accent: #1e2c26;
+  --sl-color-hairline-light: #1e2c26;
+  --sl-color-hairline: #2a3d34;
+  --sl-color-hairline-shade: #070b09;
 }
 
-.site-title img {
-  max-height: 2.4rem;
+:root[data-theme='light'] {
+  --sl-color-white: #1a2a22;
+  --sl-color-gray-1: #24332b;
+  --sl-color-gray-2: #3d4f45;
+  --sl-color-gray-3: #5c6e64;
+  --sl-color-gray-4: #b8a888;
+  --sl-color-gray-5: #e8dcc4;
+  --sl-color-gray-6: #f0e6d2;
+  --sl-color-black: #f6efe0;
+  --sl-color-accent-low: #e8dcc4;
+  --sl-color-accent: #8a6a3b;
+  --sl-color-accent-high: #5c4a2e;
+  --sl-color-text: #1a2a22;
+  --sl-color-text-accent: #8a6a3b;
+  --sl-color-text-invert: #1a2a22;
+  --sl-color-bg: #f6efe0;
+  --sl-color-bg-nav: #f6efe0;
+  --sl-color-bg-sidebar: #f0e6d2;
+  --sl-color-bg-inline-code: #e8dcc4;
+  --sl-color-bg-accent: #e0d2b4;
+  --sl-color-hairline-light: #e0d2b4;
+  --sl-color-hairline: #d4c4a4;
+  --sl-color-hairline-shade: #f6efe0;
+}
+
+.site-title {
+  color: var(--sl-color-white);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.sidebar-content a[aria-current='page'] {
+  background-color: var(--sl-color-gray-5);
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content a:not(:where(.not-content *)) {
+  color: var(--sl-color-accent);
 }
