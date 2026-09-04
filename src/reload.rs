@@ -43,6 +43,10 @@ async fn apply(state: &AppState, new: crate::Config) {
             "bind host/port change requires restart; keeping current listener"
         );
     }
+    let new = match &state.overlay {
+        Some(path) => crate::overlay::apply(&crate::overlay::load(path), &new),
+        None => new,
+    };
     if old.upstreams != new.upstreams || old.upstream_order != new.upstream_order {
         state.catalog.reset().await;
     }

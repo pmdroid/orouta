@@ -54,6 +54,9 @@ impl Catalog {
             let Some(up) = config.upstreams.get(id) else {
                 continue;
             };
+            if up.disabled {
+                continue;
+            }
             let url = format!("{}/api/tags", up.base_url);
             let mut req = client.get(&url).timeout(PROBE);
             if let Some(key) = &up.api_key {

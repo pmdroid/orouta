@@ -3,8 +3,10 @@ mod auth;
 mod catalog;
 mod config;
 mod health;
+mod hosts;
 mod list;
 mod model;
+mod overlay;
 mod proxy;
 mod reload;
 mod status;
@@ -19,7 +21,7 @@ use crate::catalog::Catalog;
 use arc_swap::ArcSwap;
 use axum::extract::DefaultBodyLimit;
 use axum::middleware;
-use axum::routing::get;
+use axum::routing::{delete, get, post};
 use axum::Router;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -34,6 +36,7 @@ pub struct AppState {
     pub catalog: Arc<Catalog>,
     pub stats: Arc<RwLock<HashMap<String, Arc<HostStats>>>>,
     pub tailscale: Arc<Tailscale>,
+    pub overlay: Option<PathBuf>,
 }
 
 impl AppState {
@@ -51,11 +54,7 @@ impl AppState {
     }
 }
 
-pub fn app(
-    config: Arc<Config>,
-    client: reqwest::Client,
-    config_path: Option<PathBuf>,
-) -> Router {
+pub fn app(config: Arc<Config>, client: reqwest::Client, config_path: Option<PathBuf>) -> Router {
     app_with_tailscale(config, client, config_path, Arc::new(Tailscale::new()))
 }
 
@@ -65,6 +64,10 @@ pub fn app_with_tailscale(
     config_path: Option<PathBuf>,
     tailscale: Arc<Tailscale>,
 ) -> Router {
+    let config: Arc<Config> = match &config_path {
+        Some(p) => Arc::new(overlay::apply(&overlay::load(p), &config)),
+        None => config,
+    };
     let stats: HashMap<String, Arc<HostStats>> = config
         .upstream_order
         .iter()
@@ -77,13 +80,18 @@ pub fn app_with_tailscale(
         catalog: Arc::new(Catalog::new(stats.clone())),
         stats,
         tailscale,
+        overlay: config_path.clone(),
     };
-    if let Some(path) = config_path {
+    if let Some(path) = state.overlay.clone() {
         reload::spawn(path, state.clone());
     }
     Router::new()
         .route("/status", get(status::page))
         .route("/status.json", get(status::json))
+        .route("/api/hosts", post(hosts::add))
+        .route("/api/hosts/{id}/disable", post(hosts::disable))
+        .route("/api/hosts/{id}/enable", post(hosts::enable))
+        .route("/api/hosts/{id}", delete(hosts::remove))
         .fallback(proxy::handle)
         .layer(DefaultBodyLimit::max(MAX_BODY))
         .layer(middleware::from_fn_with_state(

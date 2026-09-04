@@ -62,7 +62,14 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
         }
         return unknown_model_response(&state).await;
     }
-    forward(&state, method, &pq, &headers, body, config.first_upstream()).await
+    match config.first_upstream() {
+        Some(up) => forward(&state, method, &pq, &headers, body, up).await,
+        None => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "no upstreams"})),
+        )
+            .into_response(),
+    }
 }
 
 pub async fn host_down_response(state: &AppState, upstream: &Upstream) -> Option<Response> {
@@ -85,12 +92,19 @@ pub async fn host_down_response(state: &AppState, upstream: &Upstream) -> Option
 
 pub async fn unknown_model_response(state: &AppState) -> Response {
     let config = state.config.load();
-    if let Some(id) = state
-        .catalog
-        .health
-        .first_down(&config.upstream_order)
-        .await
-    {
+    let order: Vec<String> = config
+        .upstream_order
+        .iter()
+        .filter(|id| {
+            config
+                .upstreams
+                .get(*id)
+                .map(|u| !u.disabled)
+                .unwrap_or(false)
+        })
+        .cloned()
+        .collect();
+    if let Some(id) = state.catalog.health.first_down(&order).await {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(json!({"error": "host unavailable", "host": id})),

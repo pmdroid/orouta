@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::AppState;
 use axum::extract::State;
 use axum::http::header;
@@ -138,6 +139,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
         requests_total += reqs;
         errors_total += errs;
         models_total += models.len() as u64;
+        let key_bit = if up.api_key.is_some() { "set" } else { "unset" };
         let chips = if models.is_empty() {
             r#"<span class="url">&mdash;</span>"#.to_string()
         } else {
@@ -146,7 +148,10 @@ pub async fn page(State(state): State<AppState>) -> Response {
                 .map(|m| format!(r#"<span class="model">{}</span>"#, esc(m)))
                 .collect()
         };
-        let reach = if reqs == 0 {
+        let reach = if up.disabled {
+            r#"<span class="disabled-tag">DISABLED</span><br><span class="url">not probed</span>"#
+                .to_string()
+        } else if reqs == 0 {
             r#"<span class="url">&mdash;</span>"#.to_string()
         } else if stats.reachable() {
             hosts_up += 1;
@@ -161,18 +166,31 @@ pub async fn page(State(state): State<AppState>) -> Response {
             Some(e) => format!(r#"<span class="err">{}</span>"#, esc(&e)),
             None => r#"<span class="url">&mdash;</span>"#.to_string(),
         };
+        let row_class = if up.disabled {
+            r#"<tr class="disabled">"#
+        } else {
+            "<tr>"
+        };
+        let actions = format!(
+            r#"<span class="actions"><label class="switch"><input type="checkbox" {checked} data-id="{id}" onchange="hostAction(this,'{action}')"><span class="slider"></span></label><button class="remove" data-id="{id}" onclick="hostRemove(this)">remove</button></span>"#,
+            id = esc(id),
+            checked = if up.disabled { "" } else { "checked" },
+            action = if up.disabled { "enable" } else { "disable" },
+        );
         let _ = write!(
             rows,
-            r#"<tr><td><b>{}</b><br><span class="url">{}</span><br>{}</td><td>{}</td><td class="num" data-label="models">{}</td><td class="num" data-label="requests">{}</td><td class="num" data-label="errors">{}</td><td class="num" data-label="in-flight">{}</td><td>{}</td></tr>"#,
+            r#"{row_class}<td><b>{}</b><br><span class="url">{}</span><br><span class="url">api_key: {}</span><br>{}</td><td>{}</td><td class="num" data-label="models">{}</td><td class="num" data-label="requests">{}</td><td class="num" data-label="errors">{}</td><td class="num" data-label="in-flight">{}</td><td>{}</td><td>{}</td></tr>"#,
             esc(id),
             esc(&up.base_url),
+            key_bit,
             chips,
             reach,
             models.len(),
             reqs,
             errs,
             stats.in_flight(),
-            last_err
+            last_err,
+            actions
         );
     }
     let n_hosts = config.upstream_order.len();
@@ -197,11 +215,39 @@ pub async fn page(State(state): State<AppState>) -> Response {
 <div class="stat"><b>{errors_total}</b><small>errors</small></div>
 </div>
 <table>
-<thead><tr><th>Host</th><th>Reachable</th><th class="num">Models</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">In-flight</th><th>Last error</th></tr></thead>
+<thead><tr><th>Host</th><th>Reachable</th><th class="num">Models</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">In-flight</th><th>Last error</th><th>Actions</th></tr></thead>
 <tbody>
 {rows}
 </tbody>
 </table>
+<div class="add">
+<h2>Add host</h2>
+<div class="row">
+<label>id<input type="text" id="add-id"></label>
+<label>base_url<input type="text" id="add-url"></label>
+<label>api_key (optional)<input type="password" id="add-key"></label>
+<button class="btn" onclick="hostAdd(event)">Add</button>
+</div>
+</div>
+<script>
+function hostAction(el, action) {{
+  fetch('/api/hosts/' + encodeURIComponent(el.dataset.id) + '/' + action, {{method: 'POST'}})
+    .then(function(r) {{ if (r.ok) {{ location.reload(); }} }});
+}}
+function hostRemove(el) {{
+  if (!confirm('Remove host ' + el.dataset.id + '?')) {{ return; }}
+  fetch('/api/hosts/' + encodeURIComponent(el.dataset.id), {{method: 'DELETE'}})
+    .then(function(r) {{ if (r.ok) {{ location.reload(); }} }});
+}}
+function hostAdd(e) {{
+  e.preventDefault();
+  var body = {{id: document.getElementById('add-id').value, base_url: document.getElementById('add-url').value}};
+  var key = document.getElementById('add-key').value;
+  if (key) {{ body.api_key = key; }}
+  fetch('/api/hosts', {{method: 'POST', headers: {{'content-type': 'application/json'}}, body: JSON.stringify(body)}})
+    .then(function(r) {{ if (r.ok) {{ location.reload(); }} }});
+}}
+</script>
 </div>
 </body>
 </html>
@@ -210,15 +256,12 @@ pub async fn page(State(state): State<AppState>) -> Response {
     ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response()
 }
 
-pub async fn json(State(state): State<AppState>) -> Response {
-    let config = state.config.load();
-    state.tailscale.spawn_refresh_if_stale(&state.client);
-    let ts = state.tailscale.info();
+pub async fn hosts_payload(state: &AppState, config: &Config) -> Vec<Value> {
     let by_host = state
         .catalog
-        .model_names_by_host(&config, &state.client)
+        .model_names_by_host(config, &state.client)
         .await;
-    let hosts: Vec<Value> = config
+    config
         .upstream_order
         .iter()
         .filter_map(|id| {
@@ -227,6 +270,8 @@ pub async fn json(State(state): State<AppState>) -> Response {
             Some(json!({
                 "id": id,
                 "base_url": up.base_url,
+                "disabled": up.disabled,
+                "api_key_set": up.api_key.is_some(),
                 "reachable": stats.reachable(),
                 "latency_ms": stats.latency_ms(),
                 "models": host_models(&by_host, id),
@@ -236,7 +281,14 @@ pub async fn json(State(state): State<AppState>) -> Response {
                 "last_error": stats.last_error(),
             }))
         })
-        .collect();
+        .collect()
+}
+
+pub async fn json(State(state): State<AppState>) -> Response {
+    let config = state.config.load();
+    state.tailscale.spawn_refresh_if_stale(&state.client);
+    let ts = state.tailscale.info();
+    let hosts = hosts_payload(&state, &config).await;
     let tailscale = ts.map(|t| {
         json!({
             "self": t.self_dns,
@@ -319,6 +371,36 @@ const STYLE: &str = r#"
   .ts b { color: var(--accent); letter-spacing: 0.06em; }
   .ts.dim { color: var(--muted); }
   a { color: var(--accent); text-decoration: none; }
+  tr.disabled td { opacity: 0.55; }
+  .disabled-tag { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .actions { display: flex; align-items: center; gap: 10px; }
+  .switch { position: relative; display: inline-block; width: 30px; height: 17px; flex: none; }
+  .switch input { display: none; }
+  .slider { position: absolute; inset: 0; background: var(--chip); border: 1px solid var(--line); border-radius: 17px; cursor: pointer; }
+  .slider::before { content: ""; position: absolute; width: 11px; height: 11px; left: 2px; top: 2px; border-radius: 50%; background: var(--muted); transition: 0.15s; }
+  .switch input:checked + .slider { background: var(--ok); border-color: var(--ok); }
+  .switch input:checked + .slider::before { transform: translateX(13px); background: var(--bg); }
+  .remove {
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 4px; font: inherit; font-size: 12px; padding: 1px 8px; cursor: pointer;
+  }
+  .remove:hover { color: var(--bad); border-color: var(--bad); }
+  .add {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px; margin-top: 20px;
+  }
+  .add h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 12px; }
+  .add .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .add label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 200px; font-size: 12px; color: var(--muted); }
+  .add input {
+    background: var(--chip); border: 1px solid var(--line); border-radius: 4px;
+    color: var(--text); font: inherit; font-size: 13px; padding: 7px 10px;
+  }
+  .add input:focus { outline: none; border-color: var(--accent); }
+  .add .btn {
+    align-self: flex-end; background: var(--accent); color: var(--bg); border: none; border-radius: 4px;
+    font: inherit; font-weight: 600; font-size: 13px; padding: 8px 18px; cursor: pointer;
+  }
   @media (max-width: 720px) {
     table, thead, tbody { display: block; }
     thead { display: none; }
@@ -327,7 +409,9 @@ const STYLE: &str = r#"
     tr td:nth-child(1) { flex: 1 1 100%; order: 1; }
     tr td:nth-child(2) { flex: 0 1 34%; order: 2; margin-top: 4px; }
     tr td:nth-child(7) { flex: 1 1 60%; order: 3; margin-top: 4px; }
+    tr td:nth-child(8) { flex: 1 1 100%; order: 5; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
     td.num { flex: 1 1 25%; order: 4; text-align: center; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
     .num::before { content: attr(data-label); display: block; color: var(--muted); font-size: 11px; letter-spacing: 0.06em; margin-right: 0; margin-bottom: 2px; }
+    .actions { margin-top: 0; }
   }
 "#;
