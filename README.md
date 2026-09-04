@@ -59,11 +59,10 @@ curl -H "x-api-key: sk-orouta-alice" \
 
 What works today and what might land. Full list: [orouta.dev/docs/roadmap](https://orouta.dev/docs/roadmap/).
 
-**Now.** One URL in front of several Ollama hosts. Chat follows `/api/tags`. Ollama, OpenAI `/v1`, and Anthropic messages (text). Optional API keys.
+**Now.** One URL in front of several Ollama hosts. Chat follows `/api/tags`. Ollama, OpenAI `/v1`, and Anthropic messages (text). Optional API keys. `curl -fsSL https://orouta.dev/install.sh | sh` (binary comes from a GitHub release).
 
 **Next.**
 
-- [ ] One-line install that fetches a release binary
 - [ ] A small web page: which host, which model, errors, how busy
 - [ ] `ollama pull` through orouta onto a machine you choose
 - [ ] See when a host is down
