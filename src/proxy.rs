@@ -55,7 +55,21 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
             .lookup(&state.config, &state.client, &name)
             .await
         {
+            if !state.health.is_up(&upstream.id).await {
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(json!({"error": "host unavailable", "host": upstream.id})),
+                )
+                    .into_response();
+            }
             return forward(&state, method, &pq, &headers, body, &upstream).await;
+        }
+        if let Some(id) = state.health.first_down(&state.config.upstream_order).await {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({"error": "host unavailable", "host": id})),
+            )
+                .into_response();
         }
         return (
             StatusCode::NOT_FOUND,
@@ -155,14 +169,16 @@ pub async fn forward(
             } else {
                 stats.request_finished(start.elapsed(), Some(format!("http {}", status.as_u16())));
             }
+            state.health.record_ok(&upstream.id).await;
             pipe_response(resp).await
         }
         Err(e) => {
+            state.health.record_error(&upstream.id, e.to_string()).await;
             tracing::error!(error = %e, "upstream");
             stats.request_finished(start.elapsed(), Some(e.to_string()));
             (
                 StatusCode::BAD_GATEWAY,
-                Json(json!({"error": "upstream unavailable"})),
+                Json(json!({"error": "upstream unavailable", "host": &upstream.id})),
             )
                 .into_response()
         }

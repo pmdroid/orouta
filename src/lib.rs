@@ -2,12 +2,14 @@ mod anthropic;
 mod auth;
 mod catalog;
 mod config;
+mod health;
 mod list;
 mod model;
 mod proxy;
 mod status;
 
 pub use config::Config;
+pub use health::Health;
 pub use status::HostStats;
 
 use crate::catalog::Catalog;
@@ -26,6 +28,7 @@ pub struct AppState {
     pub client: reqwest::Client,
     pub catalog: Arc<Catalog>,
     pub stats: Arc<HashMap<String, HostStats>>,
+    pub health: Arc<Health>,
 }
 
 pub fn app(config: Arc<Config>, client: reqwest::Client) -> Router {
@@ -35,10 +38,12 @@ pub fn app(config: Arc<Config>, client: reqwest::Client) -> Router {
         .map(|id| (id.clone(), HostStats::default()))
         .collect();
     let stats = Arc::new(stats);
+    let catalog = Arc::new(Catalog::new(stats.clone()));
     let state = AppState {
         config,
         client,
-        catalog: Arc::new(Catalog::new(stats.clone())),
+        health: catalog.health.clone(),
+        catalog,
         stats,
     };
     Router::new()
