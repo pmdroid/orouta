@@ -21,6 +21,14 @@ struct Cache {
     at: Instant,
 }
 
+struct RefreshGuard<'a>(&'a AtomicBool);
+
+impl Drop for RefreshGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Relaxed);
+    }
+}
+
 pub struct Tailscale {
     cache: Mutex<Cache>,
     refreshing: AtomicBool,
@@ -85,8 +93,8 @@ impl Tailscale {
         let this = self.clone();
         let client = client.clone();
         tokio::spawn(async move {
+            let _guard = RefreshGuard(&this.refreshing);
             this.refresh(&client).await;
-            this.refreshing.store(false, Ordering::Relaxed);
         });
     }
 
@@ -103,6 +111,7 @@ async fn detect(client: &reqwest::Client) -> Option<TsInfo> {
         CMD_TIMEOUT,
         tokio::process::Command::new("tailscale")
             .args(["status", "--json"])
+            .kill_on_drop(true)
             .output(),
     )
     .await

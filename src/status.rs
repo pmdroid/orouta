@@ -96,7 +96,8 @@ fn ts_chip(info: Option<&crate::tailscale::TsInfo>) -> String {
         return String::new();
     };
     if ts.serving {
-        let url = esc(ts.url.as_deref().unwrap_or(""));
+        let fallback = format!("https://{}", ts.self_dns);
+        let url = esc(ts.url.as_deref().unwrap_or(&fallback));
         format!(r#" <span class="ts"><b>TAILSCALE</b> <a href="{url}">{url}</a></span>"#)
     } else if !ts.online {
         r#" <span class="ts dim">TAILSCALE &middot; offline</span>"#.to_string()
