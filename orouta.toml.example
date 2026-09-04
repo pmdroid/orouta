@@ -12,3 +12,7 @@ api_key = ""
 [[upstream]]
 id = "desk"
 base_url = "http://192.168.1.20:11434"
+
+[[model]]
+name = "gemma4"
+upstream = "desk"

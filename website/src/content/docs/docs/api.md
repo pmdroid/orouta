@@ -7,7 +7,9 @@ Point clients at orouta the same way you would point them at Ollama.
 
 ## Ollama
 
-`POST /api/chat`, `/api/generate`, `/api/embed`, `/api/pull`, and the rest of the Ollama HTTP API are forwarded to the host for `model` or `name`. Streaming is passed through.
+`POST /api/chat`, `/api/generate`, `/api/embed`, and the rest of the Ollama HTTP API are forwarded to the host that listed `model` or `name` in `/api/tags`. Streaming is passed through.
+
+`POST /api/pull` (and create/push) use that same lookup if the name is already on a host. If not, they use `[[model]]` in the TOML to pick the download host.
 
 Unknown names return `404` `{"error":"unknown model"}`.
 

@@ -33,7 +33,8 @@ Default listen is `host = "0.0.0.0"` and `port = 11434`. `--config` defaults to 
 
 See `orouta.toml.example`. Logo: `docs/logo.png`. Favicons: `docs/favicons/`.
 
-- List Ollama hosts under `[[upstream]]`. orouta asks each `/api/tags` and routes by model name. A name should live on one host. `llama3` matches `llama3:latest`. Unknown names are 404.
+- List Ollama hosts under `[[upstream]]`. Chat routes from each host's `/api/tags`. A name should live on one host. `llama3` matches `llama3:latest`.
+- `[[model]]` says where to `ollama pull` a name that is not on any host yet. `name` or `model` in the JSON both work. Unknown names are 404.
 - Remote Ollama must listen on `0.0.0.0`. Loopback-only Ollama is unreachable on a LAN IP. See [Expose Ollama](https://orouta.dev/docs/ollama-host/).
 - `auth.keys` empty: no client auth. Non-empty: `Authorization: Bearer` or `x-api-key` must match.
 - Upstream `api_key`, if set, is sent as `Authorization: Bearer` to that host. Client auth headers are stripped.

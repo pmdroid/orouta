@@ -27,9 +27,15 @@ api_key = ""
 [[upstream]]
 id = "desk"
 base_url = "http://192.168.1.20:11434"
+
+[[model]]
+name = "gemma4"
+upstream = "desk"
 ```
 
-List hosts only. orouta calls `GET /api/tags` on each one and builds the model list. Put a given model name on one host. Clients can send `llama3` when the host reports `llama3:latest`.
+orouta calls `GET /api/tags` on each host and routes chat by those names. Put a given model on one host. Clients can send `llama3` when the host reports `llama3:latest`.
+
+`[[model]]` is the download map. `POST /api/pull` with `name` or `model` `gemma4` goes to `desk` if no host already lists it. After the pull, tags pick it up and chat follows.
 
 Each remote Ollama must listen on `0.0.0.0`, not only loopback. Otherwise orouta gets connection refused on the LAN IP. How to set that on macOS, Linux, and Windows is in [Expose Ollama](/docs/ollama-host/). Localhost-only Ollama is fine for an upstream of `http://127.0.0.1:11434`.
 

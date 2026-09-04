@@ -57,6 +57,18 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
         {
             return forward(&state, method, &pq, &headers, body, &upstream).await;
         }
+        if model::is_download(path) {
+            if let Some((entry, upstream)) = state.config.model_upstream(&name) {
+                let body = if let Some(um) = &entry.upstream_model {
+                    model::rewrite_model_fields(&body, um)
+                        .map(Bytes::from)
+                        .unwrap_or(body)
+                } else {
+                    body
+                };
+                return forward(&state, method, &pq, &headers, body, upstream).await;
+            }
+        }
         return (
             StatusCode::NOT_FOUND,
             Json(json!({"error": "unknown model"})),
@@ -82,23 +94,15 @@ async fn forward_copy(
     body: Bytes,
 ) -> Response {
     let (source, dest) = model::copy_names(&body);
-    let su = match &source {
-        Some(n) => state
-            .catalog
-            .lookup(&state.config, &state.client, n)
-            .await
-            .map(|u| u.id),
-        None => None,
-    };
-    let du = match &dest {
-        Some(n) => state
-            .catalog
-            .lookup(&state.config, &state.client, n)
-            .await
-            .map(|u| u.id),
-        None => None,
-    };
-    let upstream = match (su.as_deref(), du.as_deref()) {
+    let su = source
+        .as_deref()
+        .and_then(|n| state.config.model_upstream(n))
+        .map(|(_, u)| u.id.as_str());
+    let du = dest
+        .as_deref()
+        .and_then(|n| state.config.model_upstream(n))
+        .map(|(_, u)| u.id.as_str());
+    let upstream = match (su, du) {
         (Some(a), Some(b)) if a != b => {
             return (
                 StatusCode::BAD_REQUEST,

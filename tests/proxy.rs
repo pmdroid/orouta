@@ -22,6 +22,10 @@ api_key = "{home_api_key}"
 [[upstream]]
 id = "desk"
 base_url = "{desk}"
+
+[[model]]
+name = "gemma4"
+upstream = "desk"
 "#
     )
 }
@@ -348,6 +352,47 @@ async fn pull_unknown_name_is_404() {
         .any(|r| r.url.path() == "/api/pull");
     assert!(!home_pull);
     assert!(!desk_pull);
+}
+
+#[tokio::test]
+async fn pull_config_name_hits_mapped_host() {
+    let home = MockServer::start().await;
+    let desk = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/pull"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "ok"})))
+        .mount(&home)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/pull"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "ok"})))
+        .mount(&desk)
+        .await;
+    let base = start_with(&home, &desk, r#""sk-orouta-alice""#, "", &["llama3"], &[]).await;
+    let res = client()
+        .post(format!("{base}/api/pull"))
+        .header("Authorization", format!("Bearer {KEY}"))
+        .json(&json!({"name": "gemma4"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let home_pull = home
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/api/pull")
+        .count();
+    let desk_pull = desk
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/api/pull")
+        .count();
+    assert_eq!(home_pull, 0);
+    assert_eq!(desk_pull, 1);
 }
 
 #[tokio::test]

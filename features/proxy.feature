@@ -28,6 +28,12 @@ Feature: ollama host proxy
     Then the response status is 404
     And no host received /api/pull
 
+  Scenario: pull uses config host when not listed yet
+    Given [[model]] gemma4 maps to desk
+    And no host lists gemma4 in /api/tags
+    When POST /api/pull with name gemma4
+    Then desk received /api/pull
+
   Scenario: tags and models come from hosts
     Given home /api/tags includes llama3:latest
     And desk /api/tags includes claude-sonnet
