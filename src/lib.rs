@@ -28,7 +28,6 @@ pub struct AppState {
     pub client: reqwest::Client,
     pub catalog: Arc<Catalog>,
     pub stats: Arc<HashMap<String, HostStats>>,
-    pub health: Arc<Health>,
 }
 
 pub fn app(config: Arc<Config>, client: reqwest::Client) -> Router {
@@ -38,12 +37,10 @@ pub fn app(config: Arc<Config>, client: reqwest::Client) -> Router {
         .map(|id| (id.clone(), HostStats::default()))
         .collect();
     let stats = Arc::new(stats);
-    let catalog = Arc::new(Catalog::new(stats.clone()));
     let state = AppState {
         config,
         client,
-        health: catalog.health.clone(),
-        catalog,
+        catalog: Arc::new(Catalog::new(stats.clone())),
         stats,
     };
     Router::new()

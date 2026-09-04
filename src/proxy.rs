@@ -55,27 +55,12 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
             .lookup(&state.config, &state.client, &name)
             .await
         {
-            if !state.health.is_up(&upstream.id).await {
-                return (
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    Json(json!({"error": "host unavailable", "host": upstream.id})),
-                )
-                    .into_response();
+            if let Some(res) = host_down_response(&state, &upstream).await {
+                return res;
             }
             return forward(&state, method, &pq, &headers, body, &upstream).await;
         }
-        if let Some(id) = state.health.first_down(&state.config.upstream_order).await {
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({"error": "host unavailable", "host": id})),
-            )
-                .into_response();
-        }
-        return (
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": "unknown model"})),
-        )
-            .into_response();
+        return unknown_model_response(&state).await;
     }
     forward(
         &state,
@@ -86,6 +71,43 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
         state.config.first_upstream(),
     )
     .await
+}
+
+pub async fn host_down_response(state: &AppState, upstream: &Upstream) -> Option<Response> {
+    if state.catalog.health.is_up(&upstream.id).await {
+        return None;
+    }
+    state.catalog.refresh(&state.config, &state.client).await;
+    if state.catalog.health.is_up(&upstream.id).await {
+        return None;
+    }
+    Some(
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "host unavailable", "host": upstream.id})),
+        )
+            .into_response(),
+    )
+}
+
+pub async fn unknown_model_response(state: &AppState) -> Response {
+    if let Some(id) = state
+        .catalog
+        .health
+        .first_down(&state.config.upstream_order)
+        .await
+    {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "host unavailable", "host": id})),
+        )
+            .into_response();
+    }
+    (
+        StatusCode::NOT_FOUND,
+        Json(json!({"error": "unknown model"})),
+    )
+        .into_response()
 }
 
 async fn forward_copy(
@@ -169,11 +191,15 @@ pub async fn forward(
             } else {
                 stats.request_finished(start.elapsed(), Some(format!("http {}", status.as_u16())));
             }
-            state.health.record_ok(&upstream.id).await;
+            state.catalog.health.record_ok(&upstream.id).await;
             pipe_response(resp).await
         }
         Err(e) => {
-            state.health.record_error(&upstream.id, e.to_string()).await;
+            state
+                .catalog
+                .health
+                .record_error(&upstream.id, e.to_string())
+                .await;
             tracing::error!(error = %e, "upstream");
             stats.request_finished(start.elapsed(), Some(e.to_string()));
             (

@@ -53,7 +53,10 @@ impl Catalog {
             let host_stats = self.stats.get(id);
             let start = Instant::now();
             let resp = match req.send().await {
-                Ok(r) => r,
+                Ok(r) => {
+                    self.health.record_ok(id).await;
+                    r
+                }
                 Err(e) => {
                     self.health.record_error(id, e.to_string()).await;
                     if let Some(s) = host_stats {
@@ -69,24 +72,15 @@ impl Catalog {
                         Some(format!("tags http {}", resp.status().as_u16())),
                     );
                 }
-                self.health
-                    .record_error(id, format!("http {}", resp.status()))
-                    .await;
                 continue;
             }
             if let Some(s) = host_stats {
                 s.probe_finished(start.elapsed(), None);
             }
             let Ok(v) = resp.json::<Value>().await else {
-                self.health
-                    .record_error(id, "invalid json".to_string())
-                    .await;
                 continue;
             };
             let Some(models) = v.get("models").and_then(|m| m.as_array()) else {
-                self.health
-                    .record_error(id, "invalid tags".to_string())
-                    .await;
                 continue;
             };
             let mut host_models = Vec::new();
@@ -108,7 +102,6 @@ impl Catalog {
                 }
             }
             by_host.insert(id.clone(), host_models);
-            self.health.record_ok(id).await;
         }
         let mut g = self.inner.write().await;
         g.by_name = by_name;
