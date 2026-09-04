@@ -103,6 +103,15 @@ async fn status_code(req: reqwest::RequestBuilder) -> u16 {
     req.send().await.unwrap().status().as_u16()
 }
 
+fn key_id(secret: &str) -> String {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in secret.as_bytes() {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    format!("k{h:08x}")
+}
+
 async fn create_key(base: &str, label: &str) -> Value {
     let v: Value = apost(format!("{base}/api/keys"))
         .json(&json!({"label": label}))
@@ -129,9 +138,9 @@ async fn create_key_returns_secret_once_and_records_overlay() {
     assert_eq!(raw.matches(secret).count(), 1);
     let keys = v["keys"].as_array().unwrap();
     assert_eq!(keys.len(), 2);
-    assert_eq!(keys[0]["id"], "k1");
+    assert_eq!(keys[0]["id"], key_id(KEY));
     assert_eq!(keys[0]["label"], "from orouta.toml");
-    assert_eq!(keys[1]["id"], "k2");
+    assert_eq!(keys[1]["id"], key_id(secret));
     assert_eq!(keys[1]["label"], "ci");
     for entry in keys {
         let text = serde_json::to_string(entry).unwrap();
@@ -180,8 +189,18 @@ async fn revoke_stops_key_on_next_request() {
     let (base, dir) = start(&[KEY]).await;
     let v = create_key(&base, "ci").await;
     let secret = v["secret"].as_str().unwrap().to_string();
-    let res = adelete(format!("{base}/api/keys/k2")).send().await.unwrap();
+    let id = v["keys"][1]["id"].as_str().unwrap().to_string();
+    let res = adelete(format!("{base}/api/keys/{id}"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), 200);
+    let remaining: Value = res.json().await.unwrap();
+    assert_eq!(
+        remaining["keys"][0]["id"],
+        key_id(KEY),
+        "ids of surviving keys must not renumber"
+    );
     let overlay: Value =
         serde_json::from_str(&std::fs::read_to_string(overlay_path(&dir)).unwrap()).unwrap();
     assert_eq!(overlay["keys"]["revoked"][0], secret.as_str());
@@ -196,7 +215,10 @@ async fn revoke_stops_key_on_next_request() {
 #[tokio::test]
 async fn toml_edits_cannot_resurrect_revoked_key() {
     let (base, dir) = start(&[KEY]).await;
-    let res = adelete(format!("{base}/api/keys/k1")).send().await.unwrap();
+    let res = adelete(format!("{base}/api/keys/{}", key_id(KEY)))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), 200);
     std::fs::write(dir.join("orouta.toml"), toml_for(&[KEY, "sk-orouta-bob"])).unwrap();
     tokio::time::sleep(Duration::from_millis(2500)).await;
@@ -211,16 +233,31 @@ async fn toml_edits_cannot_resurrect_revoked_key() {
 }
 
 #[tokio::test]
+async fn label_is_capped() {
+    let (base, _dir) = start(&[KEY]).await;
+    let long = "x".repeat(200);
+    let v = create_key(&base, &long).await;
+    let keys = v["keys"].as_array().unwrap();
+    assert_eq!(keys[1]["label"].as_str().unwrap().len(), 64);
+}
+
+#[tokio::test]
 async fn unknown_key_id_returns_404() {
     let (base, _dir) = start(&[KEY]).await;
-    let res = adelete(format!("{base}/api/keys/k9")).send().await.unwrap();
+    let res = adelete(format!("{base}/api/keys/kdeadbeef"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), 404);
 }
 
 #[tokio::test]
 async fn revoking_last_key_leaves_proxy_open() {
     let (base, dir) = start(&[KEY]).await;
-    let res = adelete(format!("{base}/api/keys/k1")).send().await.unwrap();
+    let res = adelete(format!("{base}/api/keys/{}", key_id(KEY)))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), 200);
     let overlay: Value =
         serde_json::from_str(&std::fs::read_to_string(overlay_path(&dir)).unwrap()).unwrap();
@@ -242,7 +279,7 @@ async fn open_proxy_refuses_key_mutations() {
         .unwrap();
     assert_eq!(res.status(), 403);
     let res = client()
-        .delete(format!("{base}/api/keys/k1"))
+        .delete(format!("{base}/api/keys/kdeadbeef"))
         .send()
         .await
         .unwrap();

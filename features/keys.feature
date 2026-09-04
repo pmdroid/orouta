@@ -5,9 +5,15 @@ Feature: manage api keys from the UI
     When POST /api/keys with label ci
     Then the response status is 200
     And the secret matches orouta_<32 hex> and appears exactly once in the response
-    And the response keys list has k1 from the TOML and k2 labeled ci
+    And the response keys list has the TOML key and the key labeled ci
     And the overlay file records the added key with label, secret and created
     And the full secret never appears in the keys list entries
+
+  Scenario: key ids are stable per key
+    Given a key was created
+    When another key is created and the first added key is revoked by id
+    Then the remaining keys keep the same ids they were listed with
+    And a stale id can never resolve to a different key
 
   Scenario: a created key authorizes requests immediately
     Given a key was created
@@ -23,7 +29,7 @@ Feature: manage api keys from the UI
 
   Scenario: revoke stops the key on the next request
     Given a key was created
-    When DELETE /api/keys/k2
+    When DELETE /api/keys/{id of the created key}
     Then the response status is 200
     And the overlay file records the secret as revoked
     When a request uses the revoked secret
@@ -38,12 +44,16 @@ Feature: manage api keys from the UI
     And requests with sk-orouta-alice are rejected
 
   Scenario: unknown key id returns 404
-    When DELETE /api/keys/k9
+    When DELETE /api/keys/kdeadbeef
     Then the response status is 404
+
+  Scenario: labels are capped in length
+    When POST /api/keys with a 200-char label
+    Then the stored and listed label is at most 64 chars
 
   Scenario: revoking the last effective key is allowed
     Given auth.keys contains only sk-orouta-alice
-    When DELETE /api/keys/k1
+    When DELETE /api/keys/{id of the TOML key}
     Then the response status is 200
     And the proxy is open until a new key is configured
 
@@ -51,7 +61,7 @@ Feature: manage api keys from the UI
     Given auth.keys is empty
     When POST /api/keys
     Then the response status is 403
-    And DELETE /api/keys/k1 returns 403
+    And DELETE /api/keys/{id} returns 403
 
   Scenario: corrupt overlay shows an error instead of TOML keys
     Given the overlay file contains garbage
