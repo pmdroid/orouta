@@ -39,3 +39,27 @@ Feature: status page
     Given home /api/tags includes llama3:latest
     When POST /v1/messages with model llama3
     Then home requests_total is 1 and errors_total is 0
+
+  Scenario: tailscale serving shows chip and link
+    Given orouta's tailscale self is box.tail-scale.ts.net and serving
+    When GET /status with a valid key
+    Then the body contains an accent TAILSCALE chip linking to https://box.tail-scale.ts.net
+    And /status.json has tailscale self, tailnet, online true, serving true and the url
+
+  Scenario: tailscale offline shows dimmed chip
+    Given orouta's tailscale self is box.tail-scale.ts.net but offline
+    When GET /status with a valid key
+    Then the body contains a dimmed "TAILSCALE · offline" chip
+    And /status.json has tailscale online false, serving false and a null url
+
+  Scenario: tailscale online but not serving shows dimmed chip
+    Given orouta's tailscale self is box.tail-scale.ts.net and online but / does not answer
+    When GET /status with a valid key
+    Then the body contains a dimmed "TAILSCALE · no serve" chip
+    And /status.json has tailscale online true, serving false and a null url
+
+  Scenario: tailscale CLI missing or not in a tailnet renders nothing
+    Given tailscale status is unavailable
+    When GET /status with a valid key
+    Then the body contains no TAILSCALE chip
+    And /status.json has tailscale null

@@ -91,6 +91,20 @@ fn host_models(by_host: &HashMap<String, Vec<String>>, id: &str) -> Vec<String> 
     by_host.get(id).cloned().unwrap_or_default()
 }
 
+fn ts_chip(info: Option<&crate::tailscale::TsInfo>) -> String {
+    let Some(ts) = info else {
+        return String::new();
+    };
+    if ts.serving {
+        let url = esc(ts.url.as_deref().unwrap_or(""));
+        format!(r#" <span class="ts"><b>TAILSCALE</b> <a href="{url}">{url}</a></span>"#)
+    } else if !ts.online {
+        r#" <span class="ts dim">TAILSCALE &middot; offline</span>"#.to_string()
+    } else {
+        r#" <span class="ts dim">TAILSCALE &middot; no serve</span>"#.to_string()
+    }
+}
+
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -100,6 +114,9 @@ fn esc(s: &str) -> String {
 
 pub async fn page(State(state): State<AppState>) -> Response {
     let config = state.config.load();
+    state.tailscale.spawn_refresh_if_stale(&state.client);
+    let ts = state.tailscale.info();
+    let ts_line = ts_chip(ts.as_ref());
     let by_host = state
         .catalog
         .model_names_by_host(&config, &state.client)
@@ -171,7 +188,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
 <body>
 <div class="wrap">
 <header><h1>orouta <span>/ status</span></h1></header>
-<p class="sub">{n_hosts} hosts &middot; reloaded every 15s &middot; <a href="/status.json">JSON</a></p>
+<p class="sub">{n_hosts} hosts &middot; reloaded every 15s &middot; <a href="/status.json">JSON</a>{ts_line}</p>
 <div class="summary">
 <div class="stat"><b>{hosts_up}/{n_hosts}</b><small>hosts up</small></div>
 <div class="stat"><b>{models_total}</b><small>models</small></div>
@@ -194,6 +211,8 @@ pub async fn page(State(state): State<AppState>) -> Response {
 
 pub async fn json(State(state): State<AppState>) -> Response {
     let config = state.config.load();
+    state.tailscale.spawn_refresh_if_stale(&state.client);
+    let ts = state.tailscale.info();
     let by_host = state
         .catalog
         .model_names_by_host(&config, &state.client)
@@ -217,7 +236,16 @@ pub async fn json(State(state): State<AppState>) -> Response {
             }))
         })
         .collect();
-    Json(json!({ "hosts": hosts })).into_response()
+    let tailscale = ts.map(|t| {
+        json!({
+            "self": t.self_dns,
+            "tailnet": t.tailnet,
+            "online": t.online,
+            "serving": t.serving,
+            "url": t.url,
+        })
+    });
+    Json(json!({ "hosts": hosts, "tailscale": tailscale })).into_response()
 }
 
 const STYLE: &str = r#"
@@ -286,6 +314,9 @@ const STYLE: &str = r#"
   .dot.down { background: var(--bad); }
   .err { color: var(--bad); font-size: 12px; }
   .model { display: inline-block; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; margin: 2px 4px 2px 0; font-size: 12px; color: var(--text); }
+  .ts { display: inline-block; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; margin-left: 12px; font-size: 12px; }
+  .ts b { color: var(--accent); letter-spacing: 0.06em; }
+  .ts.dim { color: var(--muted); }
   a { color: var(--accent); text-decoration: none; }
   @media (max-width: 720px) {
     table, thead, tbody { display: block; }
