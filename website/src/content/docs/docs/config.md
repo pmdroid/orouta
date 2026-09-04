@@ -22,7 +22,6 @@ keys = ["sk-orouta-alice"]
 id = "home"
 base_url = "http://192.168.1.10:11434"
 api_key = ""
-default = true
 
 [[upstream]]
 id = "desk"
@@ -33,7 +32,7 @@ List hosts only. orouta calls `GET /api/tags` on each one and builds the model l
 
 `auth.keys` empty means no client auth. Otherwise send `Authorization: Bearer` or `x-api-key`.
 
-Exactly one upstream must have `default = true`. That host gets management calls with an unknown name, plus paths that have no model (`/api/ps`, `/api/version`, blobs).
+Unknown names are 404. Paths with no model (`/api/ps`, `/api/version`, blobs) go to the first host in the file.
 
 An upstream `api_key` is sent to that Ollama as `Authorization: Bearer`. The client's key is stripped.
 

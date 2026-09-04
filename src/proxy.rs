@@ -57,33 +57,11 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
         {
             return forward(&state, method, &pq, &headers, body, &upstream).await;
         }
-        if model::is_inference(path) {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(json!({"error": "unknown model"})),
-            )
-                .into_response();
-        }
-        if model::is_management(path) {
-            return forward(
-                &state,
-                method,
-                &pq,
-                &headers,
-                body,
-                state.config.default_upstream(),
-            )
-            .await;
-        }
-        return forward(
-            &state,
-            method,
-            &pq,
-            &headers,
-            body,
-            state.config.default_upstream(),
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "unknown model"})),
         )
-        .await;
+            .into_response();
     }
     forward(
         &state,
@@ -91,7 +69,7 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
         &pq,
         &headers,
         body,
-        state.config.default_upstream(),
+        state.config.first_upstream(),
     )
     .await
 }
@@ -131,7 +109,13 @@ async fn forward_copy(
         (Some(a), Some(_)) => state.config.upstreams[a].clone(),
         (Some(a), None) => state.config.upstreams[a].clone(),
         (None, Some(b)) => state.config.upstreams[b].clone(),
-        _ => state.config.default_upstream().clone(),
+        _ => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "unknown model"})),
+            )
+                .into_response();
+        }
     };
     forward(state, method, pq, headers, body, &upstream).await
 }

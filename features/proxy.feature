@@ -23,9 +23,10 @@ Feature: ollama host proxy
     Then the response status is 404
     And no host received /api/chat
 
-  Scenario: unknown pull name uses default upstream
+  Scenario: unknown pull name is 404
     When POST /api/pull with name does-not-exist
-    Then home received /api/pull
+    Then the response status is 404
+    And no host received /api/pull
 
   Scenario: tags and models come from hosts
     Given home /api/tags includes llama3:latest

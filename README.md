@@ -33,8 +33,7 @@ Default bind is `0.0.0.0:11434`. `--config` defaults to `orouta.toml`.
 
 See `orouta.toml.example`. Logo: `docs/logo.png`. Favicons: `docs/favicons/`.
 
-- List Ollama hosts under `[[upstream]]`. orouta asks each `/api/tags` and routes by model name. A name should live on one host. `llama3` matches `llama3:latest`.
-- Exactly one `[[upstream]]` must have `default = true`.
+- List Ollama hosts under `[[upstream]]`. orouta asks each `/api/tags` and routes by model name. A name should live on one host. `llama3` matches `llama3:latest`. Unknown names are 404.
 - `auth.keys` empty: no client auth. Non-empty: `Authorization: Bearer` or `x-api-key` must match.
 - Upstream `api_key`, if set, is sent as `Authorization: Bearer` to that host. Client auth headers are stripped.
 

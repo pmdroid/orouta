@@ -9,7 +9,7 @@ Point clients at orouta the same way you would point them at Ollama.
 
 `POST /api/chat`, `/api/generate`, `/api/embed`, `/api/pull`, and the rest of the Ollama HTTP API are forwarded to the host for `model` or `name`. Streaming is passed through.
 
-Unknown names on inference paths return `404` `{"error":"unknown model"}`. Unknown names on pull/show/delete go to the default upstream.
+Unknown names return `404` `{"error":"unknown model"}`.
 
 ## OpenAI
 

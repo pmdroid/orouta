@@ -17,7 +17,6 @@ keys = [{keys}]
 id = "home"
 base_url = "{home}"
 api_key = "{home_api_key}"
-default = true
 
 [[upstream]]
 id = "desk"
@@ -310,7 +309,7 @@ async fn unknown_inference_model_is_404() {
 }
 
 #[tokio::test]
-async fn pull_unknown_name_uses_default() {
+async fn pull_unknown_name_is_404() {
     let home = MockServer::start().await;
     let desk = MockServer::start().await;
     Mock::given(method("POST"))
@@ -331,23 +330,23 @@ async fn pull_unknown_name_uses_default() {
         .send()
         .await
         .unwrap();
-    assert_eq!(res.status(), 200);
+    assert_eq!(res.status(), 404);
+    let v: Value = res.json().await.unwrap();
+    assert_eq!(v["error"], "unknown model");
     let home_pull = home
         .received_requests()
         .await
         .unwrap()
         .iter()
-        .filter(|r| r.url.path() == "/api/pull")
-        .count();
+        .any(|r| r.url.path() == "/api/pull");
     let desk_pull = desk
         .received_requests()
         .await
         .unwrap()
         .iter()
-        .filter(|r| r.url.path() == "/api/pull")
-        .count();
-    assert_eq!(home_pull, 1);
-    assert_eq!(desk_pull, 0);
+        .any(|r| r.url.path() == "/api/pull");
+    assert!(!home_pull);
+    assert!(!desk_pull);
 }
 
 #[tokio::test]

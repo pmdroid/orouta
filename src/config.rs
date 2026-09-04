@@ -6,7 +6,6 @@ use std::path::Path;
 pub struct Config {
     pub bind: String,
     pub keys: Vec<String>,
-    pub default_id: String,
     pub upstreams: HashMap<String, Upstream>,
     pub upstream_order: Vec<String>,
 }
@@ -40,8 +39,6 @@ struct FileUpstream {
     base_url: String,
     #[serde(default)]
     api_key: Option<String>,
-    #[serde(default)]
-    default: bool,
 }
 
 fn default_bind() -> String {
@@ -63,7 +60,6 @@ impl Config {
     fn from_file(file: FileConfig) -> Result<Self, String> {
         let mut upstreams = HashMap::new();
         let mut upstream_order = Vec::new();
-        let mut default_id: Option<String> = None;
         for u in file.upstream {
             if upstreams.contains_key(&u.id) {
                 return Err(format!("duplicate upstream id: {}", u.id));
@@ -85,12 +81,6 @@ impl Config {
                     Some(t.to_string())
                 }
             });
-            if u.default {
-                if default_id.is_some() {
-                    return Err("exactly one upstream must have default = true".into());
-                }
-                default_id = Some(u.id.clone());
-            }
             upstream_order.push(u.id.clone());
             upstreams.insert(
                 u.id.clone(),
@@ -101,18 +91,18 @@ impl Config {
                 },
             );
         }
-        let default_id = default_id
-            .ok_or_else(|| "exactly one upstream must have default = true".to_string())?;
+        if upstream_order.is_empty() {
+            return Err("at least one [[upstream]] is required".into());
+        }
         Ok(Config {
             bind: file.bind,
             keys: file.auth.keys,
-            default_id,
             upstreams,
             upstream_order,
         })
     }
 
-    pub fn default_upstream(&self) -> &Upstream {
-        &self.upstreams[&self.default_id]
+    pub fn first_upstream(&self) -> &Upstream {
+        &self.upstreams[&self.upstream_order[0]]
     }
 }

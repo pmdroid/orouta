@@ -44,7 +44,6 @@ keys = ["${KEY}"]
 id = "home"
 base_url = "${HOME_URL}"
 api_key = ""
-default = true
 EOF
 
 cargo build --quiet --manifest-path "$ROOT/Cargo.toml"

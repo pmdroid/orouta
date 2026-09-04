@@ -16,7 +16,6 @@ keys = ["sk-orouta-alice"]
 [[upstream]]
 id = "home"
 base_url = "{home}"
-default = true
 
 [[upstream]]
 id = "desk"
