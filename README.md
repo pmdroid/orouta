@@ -57,38 +57,21 @@ curl -H "x-api-key: sk-orouta-alice" \
 
 ## Roadmap
 
-Same list as [the docs](https://orouta.dev/docs/roadmap/).
+What works today and what might land. Full list: [orouta.dev/docs/roadmap](https://orouta.dev/docs/roadmap/).
 
-### Ship
+**Now.** One URL in front of several Ollama hosts. Chat follows `/api/tags`. Ollama, OpenAI `/v1`, and Anthropic messages (text). Optional API keys.
 
-- [ ] Tag `v0.1.0` so `curl | sh` has binaries
-- [ ] Cloudflare Pages on `orouta.dev` (`website/`, output `dist`)
-- [ ] systemd unit
-- [ ] launchd plist
+**Next.**
 
-### Proxy
+- [ ] One-line install that fetches a release binary
+- [ ] A small web page: which host, which model, errors, how busy
+- [ ] `ollama pull` through orouta onto a machine you choose
+- [ ] See when a host is down
+- [ ] Change the TOML without restarting
+- [ ] HTTPS, or Caddy/nginx in front
+- [ ] Homebrew
 
-- [ ] SIGHUP / file watch to reload TOML
-- [ ] Per-host up/down in `/api/tags`
-- [ ] Same name on two hosts: 409 or prefer running (`/api/ps`)
-- [ ] Pull host later (`pull = true` on one upstream)
-- [ ] Refresh tags right after a successful pull
-
-### Stats
-
-- [ ] `GET /stats` JSON (per host + per model: count, errors, latency, last used)
-- [ ] One HTML page that polls it
-- [ ] In-flight stream count
-
-### Protocol
-
-- [ ] Anthropic tools/images, or drop `/v1/messages` if unused
-- [ ] TLS, or document Caddy/nginx in front
-
-### Ops
-
-- [ ] Access log: time, model, host, status, ms
-- [ ] Homebrew formula
+**Later.** Same model on two hosts without guessing. Anthropic tools/images. A log of who called which model.
 
 ## License
 
