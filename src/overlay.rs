@@ -7,6 +7,23 @@ use std::path::{Path, PathBuf};
 pub struct Overlay {
     #[serde(default)]
     pub hosts: OverlayHosts,
+    #[serde(default)]
+    pub keys: OverlayKeys,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct OverlayKeys {
+    #[serde(default)]
+    pub added: Vec<OverlayKey>,
+    #[serde(default)]
+    pub revoked: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OverlayKey {
+    pub label: String,
+    pub secret: String,
+    pub created: String,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -51,6 +68,12 @@ pub fn save(config_path: &Path, overlay: &Overlay) -> Result<(), String> {
     {
         let mut f =
             std::fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            f.set_permissions(std::fs::Permissions::from_mode(0o600))
+                .map_err(|e| format!("chmod {}: {e}", tmp.display()))?;
+        }
         f.write_all(text.as_bytes())
             .map_err(|e| format!("write {}: {e}", tmp.display()))?;
         f.sync_all()
@@ -68,6 +91,20 @@ pub fn apply(overlay: &Overlay, config: &Config) -> Config {
         }
         upstreams.remove(id);
         order.retain(|x| x != id);
+    }
+    let mut keys: Vec<String> = config
+        .raw_keys
+        .iter()
+        .filter(|k| !overlay.keys.revoked.contains(k))
+        .cloned()
+        .collect();
+    for added in &overlay.keys.added {
+        if overlay.keys.revoked.contains(&added.secret) {
+            continue;
+        }
+        if !keys.contains(&added.secret) {
+            keys.push(added.secret.clone());
+        }
     }
     for added in &overlay.hosts.added {
         if overlay.hosts.removed.contains(&added.id) {
@@ -88,7 +125,8 @@ pub fn apply(overlay: &Overlay, config: &Config) -> Config {
     Config {
         host: config.host.clone(),
         port: config.port,
-        keys: config.keys.clone(),
+        keys,
+        raw_keys: config.raw_keys.clone(),
         pull_host: config.pull_host.clone(),
         upstreams,
         upstream_order: order,

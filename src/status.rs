@@ -107,7 +107,7 @@ fn ts_chip(info: Option<&crate::tailscale::TsInfo>) -> String {
     }
 }
 
-fn esc(s: &str) -> String {
+pub(crate) fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -206,7 +206,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
 </head>
 <body>
 <div class="wrap">
-<header><h1>orouta <span>/ status</span></h1></header>
+<header><h1>orouta <span>/ status</span></h1><nav><a href="/status" class="active">hosts</a> &middot; <a href="/keys">api keys</a></nav></header>
 <p class="sub">{n_hosts} hosts &middot; reloaded every 15s &middot; <a href="/status.json">JSON</a>{ts_line}</p>
 <div class="summary">
 <div class="stat"><b>{hosts_up}/{n_hosts}</b><small>hosts up</small></div>
@@ -307,7 +307,7 @@ pub async fn json(State(state): State<AppState>) -> Response {
     Json(json!({ "hosts": hosts, "tailscale": tailscale })).into_response()
 }
 
-const STYLE: &str = r#"
+pub(crate) const STYLE: &str = r#"
   :root {
     --bg: #070b09;
     --panel: #101612;
@@ -377,6 +377,22 @@ const STYLE: &str = r#"
   .ts b { color: var(--accent); letter-spacing: 0.06em; }
   .ts.dim { color: var(--muted); }
   a { color: var(--accent); text-decoration: none; }
+  nav { margin-left: auto; font-size: 13px; }
+  nav a { color: var(--muted); }
+  nav a.active { color: var(--accent); }
+  .reveal { border: 1px solid var(--accent); border-radius: 6px; padding: 12px 14px; margin-bottom: 14px; overflow: hidden; }
+  .reveal b { display: block; margin-bottom: 6px; font-size: 13px; }
+  .reveal code { background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; font-size: 12px; word-break: break-all; }
+  .reveal .btn { float: right; margin-left: 12px; background: var(--accent); color: var(--bg); border: none; border-radius: 4px; font: inherit; font-weight: 600; font-size: 12px; padding: 5px 12px; cursor: pointer; }
+  .revoke {
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 4px; font: inherit; font-size: 12px; padding: 1px 8px; cursor: pointer;
+  }
+  .revoke:hover { color: var(--bad); border-color: var(--bad); }
+  .klabel { font-weight: 600; }
+  .kprefix { color: var(--muted); }
+  .ktime { color: var(--muted); font-size: 12px; }
+  .error { color: var(--bad); border: 1px solid var(--bad); border-radius: 6px; padding: 10px 12px; margin-bottom: 16px; }
   tr.disabled td { opacity: 0.55; }
   .disabled-tag { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
   .actions { display: flex; align-items: center; gap: 10px; }

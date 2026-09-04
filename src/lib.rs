@@ -4,6 +4,7 @@ mod catalog;
 mod config;
 mod health;
 mod hosts;
+mod keys;
 mod list;
 mod model;
 mod overlay;
@@ -25,7 +26,7 @@ use axum::routing::{delete, get, post};
 use axum::Router;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 pub const MAX_BODY: usize = 32 * 1024 * 1024;
 
@@ -38,6 +39,7 @@ pub struct AppState {
     pub tailscale: Arc<Tailscale>,
     pub overlay: Option<PathBuf>,
     pub overlay_lock: Arc<tokio::sync::Mutex<()>>,
+    pub key_usage: Arc<Mutex<HashMap<String, u64>>>,
 }
 
 impl AppState {
@@ -89,6 +91,7 @@ pub fn app_with_tailscale(
         tailscale,
         overlay: config_path.clone(),
         overlay_lock: Arc::new(tokio::sync::Mutex::new(())),
+        key_usage: Arc::new(Mutex::new(HashMap::new())),
     };
     if let Some(path) = state.overlay.clone() {
         reload::spawn(path, state.clone());
@@ -96,6 +99,9 @@ pub fn app_with_tailscale(
     Router::new()
         .route("/status", get(status::page))
         .route("/status.json", get(status::json))
+        .route("/keys", get(keys::page))
+        .route("/api/keys", post(keys::create))
+        .route("/api/keys/{id}", delete(keys::revoke))
         .route("/api/hosts", post(hosts::add))
         .route("/api/hosts/{id}/disable", post(hosts::disable))
         .route("/api/hosts/{id}/enable", post(hosts::enable))

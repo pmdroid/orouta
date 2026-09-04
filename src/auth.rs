@@ -16,7 +16,8 @@ pub async fn require_key(
     if config.keys.is_empty() {
         return next.run(request).await;
     }
-    if authorized(&config.keys, request.headers()) {
+    if let Some(key) = authorized(&config.keys, request.headers()) {
+        crate::keys::stamp(&state, &key);
         next.run(request).await
     } else {
         (
@@ -27,7 +28,7 @@ pub async fn require_key(
     }
 }
 
-fn authorized(keys: &[String], headers: &axum::http::HeaderMap) -> bool {
+fn authorized(keys: &[String], headers: &axum::http::HeaderMap) -> Option<String> {
     let mut presented = Vec::new();
     if let Some(value) = headers
         .get(header::AUTHORIZATION)
@@ -45,7 +46,7 @@ fn authorized(keys: &[String], headers: &axum::http::HeaderMap) -> bool {
     }
     presented
         .iter()
-        .any(|p| keys.iter().any(|k| token_eq(p, k)))
+        .find_map(|p| keys.iter().find(|k| token_eq(p, k)).cloned())
 }
 
 fn token_eq(a: &str, b: &str) -> bool {
