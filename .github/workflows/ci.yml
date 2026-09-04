@@ -1,0 +1,71 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo test
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: test "$(sh install.sh --print-target)" = x86_64-unknown-linux-gnu
+      - run: test "$(sh install.sh --print-url)" = https://github.com/pmdroid/orouta/releases/latest/download/orouta-x86_64-unknown-linux-gnu
+      - run: test "$(OROUTA_VERSION=v0.1.0 sh install.sh --print-url)" = https://github.com/pmdroid/orouta/releases/download/v0.1.0/orouta-x86_64-unknown-linux-gnu
+
+  binaries:
+    if: github.event_name == 'push'
+    needs: test
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: x86_64-unknown-linux-gnu
+            cargo_target: ""
+          - os: ubuntu-24.04-arm
+            artifact: aarch64-unknown-linux-gnu
+            cargo_target: ""
+          - os: macos-latest
+            artifact: aarch64-apple-darwin
+            cargo_target: ""
+          - os: macos-latest
+            artifact: x86_64-apple-darwin
+            cargo_target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: build
+        run: |
+          if [ -n "${{ matrix.cargo_target }}" ]; then
+            rustup target add "${{ matrix.cargo_target }}"
+            cargo build --release --target "${{ matrix.cargo_target }}"
+            BIN="target/${{ matrix.cargo_target }}/release/orouta"
+          else
+            cargo build --release
+            BIN=target/release/orouta
+          fi
+          strip "$BIN" || true
+          cp "$BIN" "orouta-${{ matrix.artifact }}"
+          chmod +x "orouta-${{ matrix.artifact }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orouta-${{ matrix.artifact }}
+          path: orouta-${{ matrix.artifact }}
+          if-no-files-found: error
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: orouta-${{ matrix.artifact }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true

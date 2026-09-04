@@ -6,10 +6,24 @@
 
 Several Ollama hosts behind one port. The JSON `model` (or `name`) picks the host. Anthropic `POST /v1/messages` is translated to Ollama `/api/chat`; everything else is byte-forwarded.
 
+## Install
+
+```
+curl -fsSL https://raw.githubusercontent.com/pmdroid/orouta/main/install.sh | sh
+```
+
+Puts `orouta` in `~/.local/bin` (override with `OROUTA_BINDIR`). Fetches the latest GitHub release binary for this OS/arch. Pin with `OROUTA_VERSION=v0.1.0`.
+
 ## Run
 
 ```
 cp orouta.toml.example orouta.toml
+orouta --config orouta.toml
+```
+
+From source:
+
+```
 cargo run --release -- --config orouta.toml
 ```
 
