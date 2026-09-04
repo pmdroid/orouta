@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>orouta — status (manage prototype)</title>
+<title>orouta — api keys (prototype)</title>
 <style>
   :root {
-    --bg: #070b09;
-    --panel: #101612;
-    --line: #2a3d34;
-    --chip: #0a0f0c;
-    --text: #e8dcc4;
-    --muted: #8a9a8c;
-    --accent: #c4a574;
-    --ok: #8a9a8c;
-    --bad: #c96f5a;
-    --input: #0a0f0c;
+    --bg: #f7f3e8;
+    --panel: #fffdf6;
+    --line: #ddd2b8;
+    --chip: #f1ead9;
+    --text: #2a3d34;
+    --muted: #6e7d70;
+    --accent: #9a7430;
+    --ok: #4d7d5c;
+    --bad: #b4462e;
+    --input: #f1ead9;
   }
   @media (prefers-color-scheme: light) {
     :root {
@@ -142,90 +142,48 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>orouta <span>/ status</span></h1>
-    <nav><a href="/status" class="active">hosts</a> &middot; <a href="/keys">api keys</a></nav>
+    <h1>orouta <span>/ api keys</span></h1>
+    <nav><a href="/status">hosts</a> &middot; <a href="/keys" class="active">api keys</a></nav>
   </header>
-  <p class="sub">4 hosts &middot; 1 disabled &middot; refreshed every 15s from <code>/api/tags</code> &middot; <a href="/status.json">JSON</a></p>
+  <p class="sub">keys authorize everything the proxy can do &middot; revoked keys stop working on the next request</p>
 
-  <div class="summary">
-    <div class="stat"><b>2/4</b><small>hosts up</small></div>
-    <div class="stat"><b>14</b><small>models routable</small></div>
-    <div class="stat"><b>1,284</b><small>requests today</small></div>
-    <div class="stat"><b>17</b><small>errors</small></div>
-  </div>
-
-  <table class="hosts">
-    <thead>
-      <tr>
-        <th>Host</th>
-        <th>Reachable</th>
-        <th class="num">Models</th>
-        <th class="num">Requests</th>
-        <th class="num">Errors</th>
-        <th class="num">In-flight</th>
-        <th>Last error</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><b>home</b><br><span class="url">http://192.168.1.10:11434</span><br>
-          <span class="model">llama3.1:8b</span><span class="model">qwen2.5:14b</span><span class="model">nomic-embed-text</span></td>
-        <td><span class="up">&#9679; up</span><br><span class="url">12ms</span></td>
-        <td class="num" data-label="models">3</td>
-        <td class="num" data-label="requests">812</td>
-        <td class="num" data-label="errors">2</td>
-        <td class="num" data-label="in-flight">1</td>
-        <td><span class="url">4h ago &middot; connection reset</span></td>
-        <td><span class="actions"><label class="switch"><input type="checkbox" checked><span class="slider"></span></label><button class="remove">remove</button></span></td>
-      </tr>
-      <tr>
-        <td><b>desk</b><br><span class="url">http://192.168.1.20:11434</span><br>
-          <span class="model">llama3.1:8b</span><span class="model">deepseek-r1:32b</span><span class="model">mistral-nemo</span><span class="model">gemma3:27b</span></td>
-        <td><span class="up">&#9679; up</span><br><span class="url">31ms</span></td>
-        <td class="num" data-label="models">4</td>
-        <td class="num" data-label="requests">472</td>
-        <td class="num" data-label="errors">0</td>
-        <td class="num" data-label="in-flight">0</td>
-        <td><span class="url">&mdash;</span></td>
-        <td><span class="actions"><label class="switch"><input type="checkbox" checked><span class="slider"></span></label><button class="remove">remove</button></span></td>
-      </tr>
-      <tr>
-        <td><b>laptop</b><br><span class="url">http://192.168.1.30:11434</span><br>
-          <span class="model">phi4</span></td>
-        <td><span class="dot down"></span><span class="down">down</span><br><span class="url">last ok 38m ago</span></td>
-        <td class="num" data-label="models">1</td>
-        <td class="num" data-label="requests">0</td>
-        <td class="num" data-label="errors">15</td>
-        <td class="num" data-label="in-flight">0</td>
-        <td><span class="err">connect timeout after 2s</span><br><span class="url">38m ago &middot; 15 consecutive</span></td>
-        <td><span class="actions"><label class="switch"><input type="checkbox" checked><span class="slider"></span></label><button class="remove">remove</button></span></td>
-      </tr>
-      <tr class="disabled">
-        <td><b>nuc</b><br><span class="url">http://192.168.1.40:11434</span><br>
-          <span class="model">llava</span></td>
-        <td><span class="disabled-tag">disabled</span><br><span class="url">not probed</span></td>
-        <td class="num" data-label="models">1</td>
-        <td class="num" data-label="requests">0</td>
-        <td class="num" data-label="errors">0</td>
-        <td class="num" data-label="in-flight">0</td>
-        <td><span class="url">&mdash;</span></td>
-        <td><span class="actions"><label class="switch"><input type="checkbox"><span class="slider"></span></label><button class="remove">remove</button></span></td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div class="add">
-    <h2>Add host</h2>
-    <div class="row">
-      <label>id<input type="text" placeholder="basement"></label>
-      <label>base_url<input type="text" placeholder="http://192.168.1.50:11434"></label>
-      <label>api_key (optional)<input type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"></label>
-      <button class="btn">Add</button>
+  <div class="keys" style="margin-top:0">
+    <h2>API keys</h2>
+    <table>
+      <thead><tr><th>Label</th><th>Key</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="klabel">alice laptop</span></td>
+          <td><span class="kprefix">sk-orouta-9f3c&hellip;</span></td>
+          <td><span class="ktime">2026-08-12</span></td>
+          <td><span class="ktime">2m ago</span></td>
+          <td><button class="revoke">revoke</button></td>
+        </tr>
+        <tr>
+          <td><span class="klabel">ci pipeline</span></td>
+          <td><span class="kprefix">sk-orouta-77ab&hellip;</span></td>
+          <td><span class="ktime">2026-09-01</span></td>
+          <td><span class="ktime">3h ago</span></td>
+          <td><button class="revoke">revoke</button></td>
+        </tr>
+        <tr>
+          <td><span class="klabel">from orouta.toml</span></td>
+          <td><span class="kprefix">sk-orouta-ali&hellip;</span></td>
+          <td><span class="ktime">in config file</span></td>
+          <td><span class="ktime">5d ago</span></td>
+          <td><button class="revoke">revoke</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="row" style="margin-top:14px">
+      <label style="display:flex;flex-direction:column;gap:4px;flex:1 1 200px;font-size:12px;color:var(--muted)">label
+        <input type="text" placeholder="media pc" style="background:var(--input);border:1px solid var(--line);border-radius:4px;color:var(--text);font:inherit;font-size:13px;padding:7px 10px">
+      </label>
+      <button class="btn" style="align-self:flex-end;background:var(--accent);color:var(--bg);border:none;border-radius:4px;font:inherit;font-weight:600;font-size:13px;padding:8px 18px;cursor:pointer">Create key</button>
     </div>
   </div>
 
-  <footer>orouta v0.1.0 &middot; page reloads every 15s &middot; prototype, static data</footer>
+<footer>orouta v0.1.0 &middot; page reloads every 15s &middot; prototype, static data</footer>
 </div>
 </body>
 </html>
