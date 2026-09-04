@@ -32,6 +32,7 @@ export default defineConfig({
             { label: 'Config', link: '/docs/config/' },
             { label: 'Expose Ollama', link: '/docs/ollama-host/' },
             { label: 'API', link: '/docs/api/' },
+            { label: 'Roadmap', link: '/docs/roadmap/' },
           ],
         },
       ],
