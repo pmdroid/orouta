@@ -74,7 +74,7 @@ jobs:
           name: orouta-${{ matrix.artifact }}
           path: orouta-${{ matrix.artifact }}
           if-no-files-found: error
-      - if: startsWith(github.ref, 'refs/tags/v')
+      - if: startsWith(github.ref, 'refs/tags/v') && !contains(matrix.artifact, 'apple-darwin')
         uses: softprops/action-gh-release@v2
         with:
           files: orouta-${{ matrix.artifact }}
