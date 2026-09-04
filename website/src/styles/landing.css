@@ -1,0 +1,105 @@
+:root {
+  --bg: #070b09;
+  --text: #e8dcc4;
+  --muted: #8a9a8c;
+  --accent: #c4a574;
+  --line: #2a3d34;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px 24px;
+}
+
+.nav nav {
+  display: flex;
+  gap: 20px;
+}
+
+.brand {
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 24px 80px;
+  text-align: center;
+}
+
+.logo {
+  width: min(360px, 80vw);
+  height: auto;
+  display: block;
+  margin: 12px auto 28px;
+}
+
+.lede {
+  font-size: 1.15rem;
+  max-width: 36rem;
+  margin: 0 auto 28px;
+  color: var(--text);
+}
+
+pre {
+  display: inline-block;
+  text-align: left;
+  background: #101612;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 18px;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+.hint {
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.links {
+  margin-top: 36px;
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+}

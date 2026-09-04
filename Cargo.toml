@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 description = "Route Ollama-compatible requests to hosts by model name"
 readme = "README.md"
+homepage = "https://orouta.dev"
+repository = "https://github.com/pmdroid/orouta"
 
 [dependencies]
 axum = "0.8"

@@ -1,0 +1,14 @@
+:root {
+  --sl-color-accent-high: #e8dcc4;
+  --sl-color-accent: #c4a574;
+  --sl-color-accent-low: #2a3d34;
+  --sl-color-bg: #070b09;
+  --sl-color-bg-nav: #0c1210;
+  --sl-color-bg-sidebar: #0c1210;
+  --sl-color-text: #e8dcc4;
+  --sl-color-gray-3: #8a9a8c;
+}
+
+.site-title img {
+  max-height: 2.4rem;
+}

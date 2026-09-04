@@ -4,3 +4,14 @@ orouta.toml
 .DS_Store
 .agents/skills/verify-orouta/current/
 .agents/skills/verify-orouta/evidence/
+website/node_modules/
+website/dist/
+website/.astro/
+website/public/install.sh
+website/public/logo.png
+website/public/favicon.ico
+website/public/favicon-16.png
+website/public/favicon-32.png
+website/public/apple-touch-icon.png
+website/public/icon-192.png
+website/public/icon-512.png

@@ -9,7 +9,7 @@ Several Ollama hosts behind one port. The JSON `model` (or `name`) picks the hos
 ## Install
 
 ```
-curl -fsSL https://raw.githubusercontent.com/pmdroid/orouta/main/install.sh | sh
+curl -fsSL https://orouta.dev/install.sh | sh
 ```
 
 Puts `orouta` in `~/.local/bin` (override with `OROUTA_BINDIR`). Fetches the latest GitHub release binary for this OS/arch. Pin with `OROUTA_VERSION=v0.1.0`.

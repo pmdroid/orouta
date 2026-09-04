@@ -1,4 +1,9 @@
-Feature: curl install from GitHub releases
+Feature: curl install from orouta.dev
+
+  Scenario: script is served at orouta.dev
+    When a client fetches https://orouta.dev/install.sh
+    Then the body is the install script
+    And the script downloads a GitHub release binary for this OS
 
   Scenario: linux amd64 target
     Given uname is linux x86_64

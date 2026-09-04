@@ -1,0 +1,22 @@
+{
+  "name": "orouta-website",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "node scripts/sync.mjs && astro dev",
+    "start": "node scripts/sync.mjs && astro dev",
+    "prebuild": "node scripts/sync.mjs",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "bun run build && wrangler pages deploy dist --project-name=orouta"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.35.2",
+    "astro": "^5.13.2",
+    "sharp": "^0.34.3"
+  },
+  "devDependencies": {
+    "wrangler": "^4.28.0"
+  }
+}

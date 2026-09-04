@@ -20,6 +20,17 @@ jobs:
       - run: test "$(sh install.sh --print-url)" = https://github.com/pmdroid/orouta/releases/latest/download/orouta-x86_64-unknown-linux-gnu
       - run: test "$(OROUTA_VERSION=v0.1.0 sh install.sh --print-url)" = https://github.com/pmdroid/orouta/releases/download/v0.1.0/orouta-x86_64-unknown-linux-gnu
 
+  site:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+
   binaries:
     if: github.event_name == 'push'
     needs: test

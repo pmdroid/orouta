@@ -1,0 +1,50 @@
+---
+import '../styles/landing.css';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>orouta</title>
+    <meta
+      name="description"
+      content="Several Ollama hosts behind one port. The model name picks the host."
+    />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="orouta" />
+    <meta
+      property="og:description"
+      content="Several Ollama hosts behind one port. The model name picks the host."
+    />
+    <meta property="og:image" content="https://orouta.dev/logo.png" />
+    <meta name="twitter:card" content="summary" />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="/">orouta</a>
+      <nav>
+        <a href="/docs/">Docs</a>
+        <a href="/docs/install/">Install</a>
+        <a href="https://github.com/pmdroid/orouta">GitHub</a>
+      </nav>
+    </header>
+    <main>
+      <img class="logo" src="/logo.png" alt="orouta" width="360" height="360" />
+      <p class="lede">
+        Several Ollama hosts. One port. Clients send a model name. orouta forwards the request to the host that owns it.
+      </p>
+      <pre><code>curl -fsSL https://orouta.dev/install.sh | sh</code></pre>
+      <p class="hint">Puts the binary in ~/.local/bin from the latest GitHub release for this OS.</p>
+      <p class="links">
+        <a href="/docs/install/">Install</a>
+        <a href="/docs/config/">Config</a>
+        <a href="/docs/api/">API</a>
+      </p>
+    </main>
+  </body>
+</html>
