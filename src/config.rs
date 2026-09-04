@@ -9,6 +9,7 @@ pub struct Config {
     pub keys: Vec<String>,
     pub upstreams: HashMap<String, Upstream>,
     pub upstream_order: Vec<String>,
+    pub pull_host: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,6 +29,8 @@ struct FileConfig {
     auth: FileAuth,
     #[serde(default)]
     upstream: Vec<FileUpstream>,
+    #[serde(default)]
+    pull_host: Option<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -110,6 +113,7 @@ impl Config {
             keys: file.auth.keys,
             upstreams,
             upstream_order,
+            pull_host: file.pull_host,
         })
     }
 
@@ -123,5 +127,27 @@ impl Config {
 
     pub fn first_upstream(&self) -> &Upstream {
         &self.upstreams[&self.upstream_order[0]]
+    }
+
+    pub fn resolve_pull_host(&self, host: Option<&str>) -> Result<Upstream, String> {
+        let selected = match host.or(self.pull_host.as_deref()) {
+            Some(id) => id.to_string(),
+            None => {
+                if self.upstream_order.len() == 1 {
+                    self.upstream_order[0].clone()
+                } else {
+                    return Err(format!(
+                        "no pull host selected; available hosts: {}",
+                        self.upstream_order.join(", ")
+                    ));
+                }
+            }
+        };
+        self.upstreams.get(&selected).cloned().ok_or_else(|| {
+            format!(
+                "unknown pull host {selected}; available hosts: {}",
+                self.upstream_order.join(", ")
+            )
+        })
     }
 }

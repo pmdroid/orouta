@@ -23,10 +23,43 @@ Feature: ollama host proxy
     Then the response status is 404
     And no host received /api/chat
 
-  Scenario: unknown pull name is 404
-    When POST /api/pull with name does-not-exist
-    Then the response status is 404
+  Scenario: pull with unknown name forwards to selected host
+    When POST /api/pull?host=home with name does-not-exist
+    Then home received /api/pull
+    And desk did not receive /api/pull
+
+  Scenario: pull with host param forwards to that host
+    When POST /api/pull?host=desk with name mistral
+    Then desk received /api/pull and streams the ndjson progress body
+    And home did not receive /api/pull
+
+  Scenario: pull_host config selects the download host
+    Given pull_host = "home"
+    When POST /api/pull with name llama3
+    Then home received /api/pull
+    And desk did not receive /api/pull
+
+  Scenario: host param overrides pull_host
+    Given pull_host = "home"
+    When POST /api/pull?host=desk with name llama3
+    Then desk received /api/pull
+    And home did not receive /api/pull
+
+  Scenario: pull with multiple hosts and no selection is 400
+    When POST /api/pull with name llama3
+    Then the response status is 400
+    And the error names the available host ids
     And no host received /api/pull
+
+  Scenario: pull with unknown host param is 400
+    When POST /api/pull?host=nope with name llama3
+    Then the response status is 400
+    And no host received /api/pull
+
+  Scenario: pull on a single host needs no selection
+    Given only one upstream is configured
+    When POST /api/pull with name llama3
+    Then home received /api/pull
 
   Scenario: tags and models come from hosts
     Given home /api/tags includes llama3:latest
