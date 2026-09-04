@@ -72,6 +72,7 @@
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--ok); }
   .dot.down { background: var(--bad); }
   .err { color: var(--bad); font-size: 12px; }
+  .tsline { margin: -12px 0 20px; }
   .ts { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; }
   .ts.off { color: var(--muted); }
   .tslink { color: var(--accent); font-size: 12px; }
@@ -97,6 +98,7 @@
     <h1>orouta <span>/ status</span></h1>
   </header>
   <p class="sub">3 hosts &middot; refreshed every 15s from <code>/api/tags</code> &middot; <a href="/status.json">JSON</a></p>
+  <p class="tsline"><span class="ts">tailscale</span> <a class="tslink" href="https://orouta-host.tailxyz.ts.net">https://orouta-host.tailxyz.ts.net ↗</a></p>
 
   <div class="summary">
     <div class="stat"><b>2/3</b><small>hosts up</small></div>
@@ -119,7 +121,7 @@
     </thead>
     <tbody>
       <tr>
-        <td><b>home</b><br><span class="url">http://100.101.5.20:11434</span><br><span class="ts off">tailscale</span> <span class="url">no serve</span><br>
+        <td><b>home</b><br><span class="url">http://192.168.1.10:11434</span><br>
           <span class="model">llama3.1:8b</span><span class="model">qwen2.5:14b</span><span class="model">nomic-embed-text</span></td>
         <td><span class="up">&#9679; up</span><br><span class="url">12ms</span></td>
         <td class="num" data-label="models">3</td>
@@ -129,7 +131,7 @@
         <td><span class="url">4h ago &middot; connection reset</span></td>
       </tr>
       <tr>
-        <td><b>desk</b><br><span class="url">https://desk.tailxyz.ts.net:11434</span><br><span class="ts">tailscale</span> <a class="tslink" href="https://desk.tailxyz.ts.net">desk.tailxyz.ts.net ↗</a><br>
+        <td><b>desk</b><br><span class="url">http://192.168.1.20:11434</span><br>
           <span class="model">llama3.1:8b</span><span class="model">deepseek-r1:32b</span><span class="model">mistral-nemo</span><span class="model">gemma3:27b</span></td>
         <td><span class="up">&#9679; up</span><br><span class="url">31ms</span></td>
         <td class="num" data-label="models">4</td>
