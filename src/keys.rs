@@ -40,6 +40,15 @@ pub async fn page(State(state): State<AppState>) -> Response {
             String::new(),
         ),
     };
+    let create_panel = if state.config.load().raw_keys.is_empty() {
+        r#"<p class="url" style="margin:14px 0 0">Key management is locked &mdash; configure <span style="color:var(--text)">[auth].keys</span> in orouta.toml first. A proxy without keys is open and can't be administered remotely.</p>"#.to_string()
+    } else {
+        r#"<div class="row" style="margin-top:14px">
+<label>label<input type="text" id="new-label"></label>
+<button class="btn" onclick="createKey(event)">Create key</button>
+</div>"#
+            .to_string()
+    };
     let html = format!(
         r#"<!doctype html>
 <html lang="en">
@@ -63,10 +72,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
 {rows_html}
 </tbody>
 </table>
-<div class="row" style="margin-top:14px">
-<label>label<input type="text" id="new-label"></label>
-<button class="btn" onclick="createKey(event)">Create key</button>
-</div>
+{create_panel}
 </div>
 <script>
 function renderKeys(keys) {{
