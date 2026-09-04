@@ -10,10 +10,11 @@ cp orouta.toml.example orouta.toml
 orouta --config orouta.toml
 ```
 
-`--config` defaults to `orouta.toml` in the working directory. Default bind is `0.0.0.0:11434`.
+`--config` defaults to `orouta.toml` in the working directory. Listen defaults are `host = "0.0.0.0"` and `port = 11434`.
 
 ```toml
-bind = "0.0.0.0:11434"
+host = "0.0.0.0"
+port = 11434
 
 [auth]
 keys = ["sk-orouta-alice"]

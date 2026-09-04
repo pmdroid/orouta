@@ -27,7 +27,7 @@ From source:
 cargo run --release -- --config orouta.toml
 ```
 
-Default bind is `0.0.0.0:11434`. `--config` defaults to `orouta.toml`.
+Default listen is `host = "0.0.0.0"` and `port = 11434`. `--config` defaults to `orouta.toml`.
 
 ## Config
 

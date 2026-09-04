@@ -4,7 +4,8 @@ use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub bind: String,
+    pub host: String,
+    pub port: u16,
     pub keys: Vec<String>,
     pub upstreams: HashMap<String, Upstream>,
     pub upstream_order: Vec<String>,
@@ -19,8 +20,10 @@ pub struct Upstream {
 
 #[derive(Deserialize)]
 struct FileConfig {
-    #[serde(default = "default_bind")]
-    bind: String,
+    #[serde(default = "default_host")]
+    host: String,
+    #[serde(default = "default_port")]
+    port: u16,
     #[serde(default)]
     auth: FileAuth,
     #[serde(default)]
@@ -41,8 +44,12 @@ struct FileUpstream {
     api_key: Option<String>,
 }
 
-fn default_bind() -> String {
-    "0.0.0.0:11434".to_string()
+fn default_host() -> String {
+    "0.0.0.0".to_string()
+}
+
+fn default_port() -> u16 {
+    11434
 }
 
 impl Config {
@@ -94,12 +101,24 @@ impl Config {
         if upstream_order.is_empty() {
             return Err("at least one [[upstream]] is required".into());
         }
+        if file.host.trim().is_empty() {
+            return Err("host is required".into());
+        }
         Ok(Config {
-            bind: file.bind,
+            host: file.host,
+            port: file.port,
             keys: file.auth.keys,
             upstreams,
             upstream_order,
         })
+    }
+
+    pub fn listen_addr(&self) -> String {
+        if self.host.contains(':') && !self.host.starts_with('[') {
+            format!("[{}]:{}", self.host, self.port)
+        } else {
+            format!("{}:{}", self.host, self.port)
+        }
     }
 
     pub fn first_upstream(&self) -> &Upstream {

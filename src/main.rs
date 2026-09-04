@@ -31,7 +31,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let bind = config.bind.clone();
+    let bind = config.listen_addr();
     let client = reqwest::Client::new();
     let app = orouta::app(Arc::new(config), client);
     let listener = match tokio::net::TcpListener::bind(&bind).await {

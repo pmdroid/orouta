@@ -8,7 +8,8 @@ const KEY: &str = "sk-orouta-alice";
 fn toml_for(home: &str, desk: &str, keys: &str, home_api_key: &str) -> String {
     format!(
         r#"
-bind = "127.0.0.1:0"
+host = "127.0.0.1"
+port = 0
 
 [auth]
 keys = [{keys}]

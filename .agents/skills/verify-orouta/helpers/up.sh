@@ -35,7 +35,8 @@ LOG="$WORKDIR/server.log"
 KEY="sk-orouta-verify"
 
 cat > "$CONFIG" <<EOF
-bind = "127.0.0.1:${PORT}"
+host = "127.0.0.1"
+port = ${PORT}
 
 [auth]
 keys = ["${KEY}"]
