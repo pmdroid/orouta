@@ -29,6 +29,8 @@ cargo run --release -- --config orouta.toml
 
 Default listen is `host = "0.0.0.0"` and `port = 11434`. `--config` defaults to `orouta.toml`.
 
+For HTTPS on a tailnet, see [HTTPS with Tailscale](https://orouta.dev/docs/tailscale/).
+
 ## Config
 
 See `orouta.toml.example`. Logo: `docs/logo.png`. Favicons: `docs/favicons/`.
