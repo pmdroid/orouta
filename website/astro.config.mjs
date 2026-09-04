@@ -32,6 +32,7 @@ export default defineConfig({
             { label: 'Install', link: '/docs/install/' },
             { label: 'Config', link: '/docs/config/' },
             { label: 'Expose Ollama', link: '/docs/ollama-host/' },
+            { label: 'HTTPS with Tailscale', link: '/docs/tailscale/' },
             { label: 'API', link: '/docs/api/' },
             { label: 'Roadmap', link: '/docs/roadmap/' },
           ],
