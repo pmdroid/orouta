@@ -33,10 +33,26 @@ fn names_tag(names: &[&str]) -> Value {
     json!({"models": models})
 }
 
-fn temp_dir() -> PathBuf {
+struct TempDir(PathBuf);
+
+impl std::ops::Deref for TempDir {
+    type Target = PathBuf;
+
+    fn deref(&self) -> &PathBuf {
+        &self.0
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.0).ok();
+    }
+}
+
+fn temp_dir() -> TempDir {
     let dir = std::env::temp_dir().join(format!("orouta-reload-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).unwrap();
-    dir
+    TempDir(dir)
 }
 
 async fn start(cfg_path: &PathBuf, cfg: &str) -> String {
@@ -60,7 +76,6 @@ fn client() -> reqwest::Client {
 }
 
 async fn write_config(cfg_path: &PathBuf, cfg: &str) {
-    tokio::time::sleep(Duration::from_millis(50)).await;
     std::fs::write(cfg_path, cfg).unwrap();
 }
 
@@ -123,7 +138,6 @@ async fn upstream_base_url_change_reroutes() {
     .await;
 
     assert!(wait_for_chat(&base, &desk, 1).await);
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 #[tokio::test]
@@ -162,7 +176,6 @@ async fn upstream_set_change_resets_catalog() {
     .await;
 
     assert!(wait_for_chat(&base, &desk, 1).await);
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 #[tokio::test]
@@ -190,7 +203,6 @@ async fn invalid_config_keeps_old() {
     assert_eq!(res.status(), 200);
     assert_eq!(chat_count(&home).await, 2);
     assert_eq!(chat_count(&desk).await, 0);
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 #[tokio::test]
@@ -234,7 +246,6 @@ async fn key_change_takes_effect() {
         .await
         .unwrap();
     assert_eq!(res.status(), 200);
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 async fn mount_tags(server: &MockServer, names: &[&str]) {

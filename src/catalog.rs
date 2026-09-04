@@ -21,6 +21,7 @@ struct Inner {
     by_host: HashMap<String, Vec<Value>>,
     tags: Vec<Value>,
     fetched: Option<Instant>,
+    generation: u64,
 }
 
 impl Catalog {
@@ -31,6 +32,7 @@ impl Catalog {
                 by_host: HashMap::new(),
                 tags: Vec::new(),
                 fetched: None,
+                generation: 0,
             }),
             stats,
             health: Arc::new(Health::new()),
@@ -38,10 +40,13 @@ impl Catalog {
     }
 
     pub async fn reset(&self) {
-        self.inner.write().await.fetched = None;
+        let mut g = self.inner.write().await;
+        g.generation += 1;
+        g.fetched = None;
     }
 
     pub async fn refresh(&self, config: &Config, client: &reqwest::Client) {
+        let generation = self.inner.read().await.generation;
         let mut by_name = HashMap::new();
         let mut by_host: HashMap<String, Vec<Value>> = HashMap::new();
         let mut tags = Vec::new();
@@ -108,6 +113,9 @@ impl Catalog {
             by_host.insert(id.clone(), host_models);
         }
         let mut g = self.inner.write().await;
+        if g.generation != generation {
+            return;
+        }
         g.by_name = by_name;
         g.by_host = by_host;
         g.tags = tags;

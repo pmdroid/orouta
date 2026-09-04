@@ -1,29 +1,29 @@
 use crate::AppState;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
+use tokio::fs;
 use tokio::time::interval;
 
 const POLL: Duration = Duration::from_secs(1);
 
 pub fn spawn(path: PathBuf, state: AppState) {
     tokio::spawn(async move {
-        let mut last = mtime(&path);
+        let mut last = fs::read_to_string(&path).await.ok();
         let mut tick = interval(POLL);
         loop {
             tick.tick().await;
-            let current = mtime(&path);
-            if current.is_none() || current == last {
-                continue;
-            }
-            last = current;
-            let text = match std::fs::read_to_string(&path) {
+            let text = match fs::read_to_string(&path).await {
                 Ok(t) => t,
                 Err(e) => {
                     tracing::error!(error = %e, "config reload");
                     continue;
                 }
             };
+            if Some(&text) == last.as_ref() {
+                continue;
+            }
+            last = Some(text.clone());
             match crate::Config::parse(&text) {
                 Ok(new) => apply(&state, new).await,
                 Err(e) => tracing::error!(error = %e, "config reload"),
@@ -47,8 +47,4 @@ async fn apply(state: &AppState, new: crate::Config) {
         state.catalog.reset().await;
     }
     state.config.store(Arc::new(new));
-}
-
-fn mtime(path: &Path) -> Option<SystemTime> {
-    std::fs::metadata(path).and_then(|m| m.modified()).ok()
 }
