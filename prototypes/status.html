@@ -9,11 +9,25 @@
     --bg: #070b09;
     --panel: #101612;
     --line: #2a3d34;
+    --chip: #0a0f0c;
     --text: #e8dcc4;
     --muted: #8a9a8c;
     --accent: #c4a574;
     --ok: #8a9a8c;
     --bad: #c96f5a;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f3e8;
+      --panel: #fffdf6;
+      --line: #ddd2b8;
+      --chip: #f1ead9;
+      --text: #2a3d34;
+      --muted: #6e7d70;
+      --accent: #9a7430;
+      --ok: #4d7d5c;
+      --bad: #b4462e;
+    }
   }
   * { box-sizing: border-box; }
   html, body { max-width: 100%; overflow-x: hidden; }
@@ -55,7 +69,7 @@
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--ok); }
   .dot.down { background: var(--bad); }
   .err { color: var(--bad); font-size: 12px; }
-  .model { display: inline-block; background: #0a0f0c; border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; margin: 2px 4px 2px 0; font-size: 12px; color: var(--text); }
+  .model { display: inline-block; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; margin: 2px 4px 2px 0; font-size: 12px; color: var(--text); }
   footer { color: var(--muted); margin-top: 20px; font-size: 12px; }
   a { color: var(--accent); text-decoration: none; }
   @media (max-width: 720px) {
