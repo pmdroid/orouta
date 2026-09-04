@@ -12,10 +12,11 @@ pub async fn require_key(
     request: Request<axum::body::Body>,
     next: Next,
 ) -> Response {
-    if state.config.keys.is_empty() {
+    let config = state.config.load();
+    if config.keys.is_empty() {
         return next.run(request).await;
     }
-    if authorized(&state.config.keys, request.headers()) {
+    if authorized(&config.keys, request.headers()) {
         next.run(request).await
     } else {
         (

@@ -37,6 +37,10 @@ impl Catalog {
         }
     }
 
+    pub async fn reset(&self) {
+        self.inner.write().await.fetched = None;
+    }
+
     pub async fn refresh(&self, config: &Config, client: &reqwest::Client) {
         let mut by_name = HashMap::new();
         let mut by_host: HashMap<String, Vec<Value>> = HashMap::new();

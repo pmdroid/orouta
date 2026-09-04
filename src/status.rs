@@ -99,17 +99,18 @@ fn esc(s: &str) -> String {
 }
 
 pub async fn page(State(state): State<AppState>) -> Response {
+    let config = state.config.load();
     let by_host = state
         .catalog
-        .model_names_by_host(&state.config, &state.client)
+        .model_names_by_host(&config, &state.client)
         .await;
     let mut rows = String::new();
     let mut hosts_up = 0u64;
     let mut models_total = 0u64;
     let mut requests_total = 0u64;
     let mut errors_total = 0u64;
-    for id in &state.config.upstream_order {
-        let Some(up) = state.config.upstreams.get(id) else {
+    for id in &config.upstream_order {
+        let Some(up) = config.upstreams.get(id) else {
             continue;
         };
         let stats = &state.stats[id];
@@ -156,7 +157,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
             last_err
         );
     }
-    let n_hosts = state.config.upstream_order.len();
+    let n_hosts = config.upstream_order.len();
     let html = format!(
         r#"<!doctype html>
 <html lang="en">
@@ -192,16 +193,16 @@ pub async fn page(State(state): State<AppState>) -> Response {
 }
 
 pub async fn json(State(state): State<AppState>) -> Response {
+    let config = state.config.load();
     let by_host = state
         .catalog
-        .model_names_by_host(&state.config, &state.client)
+        .model_names_by_host(&config, &state.client)
         .await;
-    let hosts: Vec<Value> = state
-        .config
+    let hosts: Vec<Value> = config
         .upstream_order
         .iter()
         .filter_map(|id| {
-            let up = state.config.upstreams.get(id)?;
+            let up = config.upstreams.get(id)?;
             let stats = &state.stats[id];
             Some(json!({
                 "id": id,

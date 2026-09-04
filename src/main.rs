@@ -33,7 +33,7 @@ async fn main() {
     };
     let bind = config.listen_addr();
     let client = reqwest::Client::new();
-    let app = orouta::app(Arc::new(config), client);
+    let app = orouta::app(Arc::new(config), client, Some(path));
     let listener = match tokio::net::TcpListener::bind(&bind).await {
         Ok(l) => l,
         Err(e) => {
