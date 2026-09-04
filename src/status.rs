@@ -232,12 +232,16 @@ pub async fn page(State(state): State<AppState>) -> Response {
 <script>
 function hostAction(el, action) {{
   fetch('/api/hosts/' + encodeURIComponent(el.dataset.id) + '/' + action, {{method: 'POST'}})
-    .then(function(r) {{ if (r.ok) {{ location.reload(); }} }});
+    .then(function(r) {{
+      if (r.ok) {{ location.reload(); }} else {{ r.text().then(function(t) {{ alert('host update failed: ' + r.status + ' ' + t); }}); }}
+    }});
 }}
 function hostRemove(el) {{
   if (!confirm('Remove host ' + el.dataset.id + '?')) {{ return; }}
   fetch('/api/hosts/' + encodeURIComponent(el.dataset.id), {{method: 'DELETE'}})
-    .then(function(r) {{ if (r.ok) {{ location.reload(); }} }});
+    .then(function(r) {{
+      if (r.ok) {{ location.reload(); }} else {{ r.text().then(function(t) {{ alert('remove failed: ' + r.status + ' ' + t); }}); }}
+    }});
 }}
 function hostAdd(e) {{
   e.preventDefault();
@@ -245,7 +249,9 @@ function hostAdd(e) {{
   var key = document.getElementById('add-key').value;
   if (key) {{ body.api_key = key; }}
   fetch('/api/hosts', {{method: 'POST', headers: {{'content-type': 'application/json'}}, body: JSON.stringify(body)}})
-    .then(function(r) {{ if (r.ok) {{ location.reload(); }} }});
+    .then(function(r) {{
+      if (r.ok) {{ location.reload(); }} else {{ r.text().then(function(t) {{ alert('add failed: ' + r.status + ' ' + t); }}); }}
+    }});
 }}
 </script>
 </div>

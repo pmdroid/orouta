@@ -37,6 +37,7 @@ pub struct AppState {
     pub stats: Arc<RwLock<HashMap<String, Arc<HostStats>>>>,
     pub tailscale: Arc<Tailscale>,
     pub overlay: Option<PathBuf>,
+    pub overlay_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl AppState {
@@ -65,7 +66,13 @@ pub fn app_with_tailscale(
     tailscale: Arc<Tailscale>,
 ) -> Router {
     let config: Arc<Config> = match &config_path {
-        Some(p) => Arc::new(overlay::apply(&overlay::load(p), &config)),
+        Some(p) => match overlay::load(p) {
+            Ok(o) => Arc::new(overlay::apply(&o, &config)),
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        },
         None => config,
     };
     let stats: HashMap<String, Arc<HostStats>> = config
@@ -81,6 +88,7 @@ pub fn app_with_tailscale(
         stats,
         tailscale,
         overlay: config_path.clone(),
+        overlay_lock: Arc::new(tokio::sync::Mutex::new(())),
     };
     if let Some(path) = state.overlay.clone() {
         reload::spawn(path, state.clone());

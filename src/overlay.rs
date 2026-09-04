@@ -1,5 +1,6 @@
 use crate::config::{build_upstream, Config};
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -33,16 +34,29 @@ pub fn path_for(config_path: &Path) -> PathBuf {
         .join("orouta.overlay.json")
 }
 
-pub fn load(config_path: &Path) -> Overlay {
-    std::fs::read_to_string(path_for(config_path))
-        .ok()
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or_default()
+pub fn load(config_path: &Path) -> Result<Overlay, String> {
+    let path = path_for(config_path);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Overlay::default()),
+        Err(e) => return Err(format!("read {}: {e}", path.display())),
+    };
+    serde_json::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))
 }
 
 pub fn save(config_path: &Path, overlay: &Overlay) -> Result<(), String> {
+    let path = path_for(config_path);
+    let tmp = path.with_extension("json.tmp");
     let text = serde_json::to_string_pretty(overlay).map_err(|e| format!("overlay: {e}"))?;
-    std::fs::write(path_for(config_path), text).map_err(|e| format!("write overlay: {e}"))
+    {
+        let mut f =
+            std::fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
+        f.write_all(text.as_bytes())
+            .map_err(|e| format!("write {}: {e}", tmp.display()))?;
+        f.sync_all()
+            .map_err(|e| format!("sync {}: {e}", tmp.display()))?;
+    }
+    std::fs::rename(&tmp, &path).map_err(|e| format!("rename {}: {e}", path.display()))
 }
 
 pub fn apply(overlay: &Overlay, config: &Config) -> Config {

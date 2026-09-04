@@ -146,8 +146,8 @@ impl Config {
 
     pub fn first_upstream(&self) -> Option<&Upstream> {
         self.upstream_order
-            .first()
-            .and_then(|id| self.upstreams.get(id))
+            .iter()
+            .find_map(|id| self.upstreams.get(id).filter(|up| !up.disabled))
     }
 
     pub fn resolve_pull_host(&self, host: Option<&str>) -> Result<Upstream, String> {

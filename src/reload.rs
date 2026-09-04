@@ -43,8 +43,15 @@ async fn apply(state: &AppState, new: crate::Config) {
             "bind host/port change requires restart; keeping current listener"
         );
     }
+    let _lock = state.overlay_lock.lock().await;
     let new = match &state.overlay {
-        Some(path) => crate::overlay::apply(&crate::overlay::load(path), &new),
+        Some(path) => match crate::overlay::load(path) {
+            Ok(o) => crate::overlay::apply(&o, &new),
+            Err(e) => {
+                tracing::error!(error = %e, "overlay corrupt; keeping last known config");
+                return;
+            }
+        },
         None => new,
     };
     if old.upstreams != new.upstreams || old.upstream_order != new.upstream_order {

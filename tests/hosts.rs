@@ -304,11 +304,6 @@ async fn disable_excludes_host_enable_restores() {
         .await
         .unwrap();
     assert_eq!(res.status(), 200);
-    eprintln!("DBG {:?}", status_hosts(&base).await);
-    eprintln!(
-        "DBG overlay {}",
-        std::fs::read_to_string(overlay_path(&dir)).unwrap()
-    );
     assert!(wait_for_tag(&base, "mistral").await);
 }
 
@@ -478,4 +473,157 @@ async fn unknown_host_returns_404() {
         let res = req.send().await.unwrap();
         assert_eq!(res.status(), 404);
     }
+}
+
+#[tokio::test]
+async fn add_reactivates_overlay_removed_host() {
+    let home = MockServer::start().await;
+    let desk = MockServer::start().await;
+    mount_tags(&home, &["llama3:latest"]).await;
+    mount_tags(&desk, &["mistral"]).await;
+    let dir = prepare(
+        &[("home", &home.uri()), ("desk", &desk.uri())],
+        r#""sk-orouta-alice""#,
+    );
+    write_overlay(
+        &dir,
+        &json!({"hosts": {"disabled": [], "removed": ["desk"], "added": []}}),
+    );
+    let base = serve(&dir).await;
+    assert!(status_hosts(&base).await.iter().all(|h| h["id"] != "desk"));
+
+    let res = apost(format!("{base}/api/hosts"))
+        .json(&json!({"id": "desk", "base_url": desk.uri()}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let hosts = status_hosts(&base).await;
+    assert!(hosts.iter().any(|h| h["id"] == "desk"));
+    assert!(wait_for_tag(&base, "mistral").await);
+
+    let overlay: Value =
+        serde_json::from_str(&std::fs::read_to_string(overlay_path(&dir)).unwrap()).unwrap();
+    assert_eq!(overlay["hosts"]["removed"].as_array().unwrap().len(), 0);
+    assert_eq!(overlay["hosts"]["added"][0]["id"], "desk");
+}
+
+#[tokio::test]
+async fn concurrent_adds_both_persist() {
+    let home = MockServer::start().await;
+    let desk = MockServer::start().await;
+    let attic = MockServer::start().await;
+    mount_tags(&home, &["llama3:latest"]).await;
+    mount_tags(&desk, &["mistral"]).await;
+    mount_tags(&attic, &["phi4"]).await;
+    let (base, dir) = start(&[("home", &home.uri())]).await;
+
+    let (r1, r2) = tokio::join!(
+        apost(format!("{base}/api/hosts"))
+            .json(&json!({"id": "desk", "base_url": desk.uri()}))
+            .send(),
+        apost(format!("{base}/api/hosts"))
+            .json(&json!({"id": "attic", "base_url": attic.uri()}))
+            .send()
+    );
+    assert_eq!(r1.unwrap().status(), 200);
+    assert_eq!(r2.unwrap().status(), 200);
+    let hosts = status_hosts(&base).await;
+    assert!(hosts.iter().any(|h| h["id"] == "desk"));
+    assert!(hosts.iter().any(|h| h["id"] == "attic"));
+    let overlay: Value =
+        serde_json::from_str(&std::fs::read_to_string(overlay_path(&dir)).unwrap()).unwrap();
+    assert_eq!(overlay["hosts"]["added"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn corrupt_overlay_keeps_last_config_and_refuses_mutations() {
+    let home = MockServer::start().await;
+    let desk = MockServer::start().await;
+    mount_tags(&home, &["llama3:latest"]).await;
+    mount_tags(&desk, &["mistral"]).await;
+    let (base, dir) = start(&[("home", &home.uri()), ("desk", &desk.uri())]).await;
+    assert!(wait_for_tag(&base, "mistral").await);
+
+    let res = adelete(format!("{base}/api/hosts/desk"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    assert!(status_hosts(&base).await.iter().all(|h| h["id"] != "desk"));
+
+    std::fs::write(overlay_path(&dir), "not json at all").unwrap();
+    tokio::time::sleep(Duration::from_millis(1600)).await;
+    assert!(status_hosts(&base).await.iter().all(|h| h["id"] != "desk"));
+
+    let res = apost(format!("{base}/api/hosts"))
+        .json(&json!({"id": "attic", "base_url": "http://127.0.0.1:1"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 500);
+}
+
+#[tokio::test]
+async fn disabled_first_upstream_skips_fallback() {
+    let home = MockServer::start().await;
+    let desk = MockServer::start().await;
+    mount_tags(&home, &["llama3:latest"]).await;
+    mount_tags(&desk, &["mistral"]).await;
+    mount_chat(&desk, Duration::ZERO).await;
+    let (base, _dir) = start(&[("home", &home.uri()), ("desk", &desk.uri())]).await;
+
+    let res = apost(format!("{base}/api/hosts/home/disable"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+
+    let res = client()
+        .post(format!("{base}/api/chat"))
+        .header("Authorization", format!("Bearer {KEY}"))
+        .json(&json!({"messages": [{"role": "user", "content": "hi"}]}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let hits = desk
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/api/chat")
+        .count();
+    assert_eq!(hits, 1);
+    let home_hits = home
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/api/chat")
+        .count();
+    assert_eq!(home_hits, 0);
+}
+
+#[tokio::test]
+async fn disabled_only_upstream_returns_503_on_fallback() {
+    let home = MockServer::start().await;
+    mount_tags(&home, &["llama3:latest"]).await;
+    mount_chat(&home, Duration::ZERO).await;
+    let (base, _dir) = start(&[("home", &home.uri())]).await;
+
+    let res = apost(format!("{base}/api/hosts/home/disable"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+
+    let res = client()
+        .post(format!("{base}/api/chat"))
+        .header("Authorization", format!("Bearer {KEY}"))
+        .json(&json!({"messages": [{"role": "user", "content": "hi"}]}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 503);
 }
