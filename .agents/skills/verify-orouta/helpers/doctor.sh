@@ -37,11 +37,5 @@ except Exception as e:
 if status != 200:
     sys.stderr.write(f"GET /api/tags status {status}\n")
     sys.exit(1)
-data = json.loads(body)
-names = {m.get("name") for m in data.get("models", [])}
-need = {"llama3", "claude-sonnet"}
-if not need <= names:
-    sys.stderr.write(f"models {names} missing {need - names}\n")
-    sys.exit(1)
 sys.stdout.write(body.decode() + "\n")
 PY

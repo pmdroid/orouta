@@ -1,13 +1,15 @@
 Feature: ollama host proxy
 
-  Scenario: chat routes llama3 to home only
-    Given model llama3 maps to upstream home
+  Scenario: chat routes llama3 to the host that lists it
+    Given home /api/tags includes llama3:latest
+    And desk /api/tags includes mistral
     When POST /api/chat with model llama3
-    Then home received the request
-    And desk received no request
+    Then home received /api/chat
+    And desk did not receive /api/chat
 
   Scenario: openai chat completions byte-forward
-    Given model llama3 maps to upstream home with api_key
+    Given home /api/tags includes llama3
+    And home has api_key
     When POST /v1/chat/completions with model llama3 and a client Bearer token
     Then the upstream Authorization is the config api_key
     And the client key is not forwarded
@@ -19,14 +21,15 @@ Feature: ollama host proxy
   Scenario: unknown inference model is 404
     When POST /api/chat with model does-not-exist
     Then the response status is 404
-    And no upstream is called
+    And no host received /api/chat
 
   Scenario: unknown pull name uses default upstream
     When POST /api/pull with name does-not-exist
-    Then home received the request
+    Then home received /api/pull
 
-  Scenario: tags and models are synthetic
+  Scenario: tags and models come from hosts
+    Given home /api/tags includes llama3:latest
+    And desk /api/tags includes claude-sonnet
     When GET /api/tags
     And GET /v1/models
-    Then both lists come from config
-    And no upstream is called
+    Then both lists include those names

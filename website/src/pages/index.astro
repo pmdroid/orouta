@@ -36,7 +36,7 @@ import '../styles/landing.css';
     <main>
       <img class="logo" src="/logo.png" alt="orouta" width="360" height="360" />
       <p class="lede">
-        Several Ollama hosts. One port. Clients send a model name. orouta forwards the request to the host that owns it.
+        Several Ollama hosts. One port. orouta asks each host which models it has. Clients send a model name. The request goes to the host that listed it.
       </p>
       <pre><code>curl -fsSL https://orouta.dev/install.sh | sh</code></pre>
       <p class="hint">Puts the binary in ~/.local/bin from the latest GitHub release for this OS.</p>

@@ -21,21 +21,26 @@ default = true
 [[upstream]]
 id = "desk"
 base_url = "{desk}"
-
-[[model]]
-name = "llama3"
-upstream = "home"
-
-[[model]]
-name = "claude-sonnet"
-upstream = "desk"
-upstream_model = "llama3:70b"
 "#
     )
 }
 
-async fn start(home: &str, desk: &str) -> String {
-    let cfg = orouta::Config::parse(&toml_for(home, desk)).unwrap();
+async fn mount_tags(server: &MockServer, names: &[&str]) {
+    let models: Vec<Value> = names
+        .iter()
+        .map(|n| json!({"name": n, "model": n}))
+        .collect();
+    Mock::given(method("GET"))
+        .and(path("/api/tags"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"models": models})))
+        .mount(server)
+        .await;
+}
+
+async fn start(home: &MockServer, desk: &MockServer) -> String {
+    mount_tags(home, &["llama3"]).await;
+    mount_tags(desk, &["claude-sonnet"]).await;
+    let cfg = orouta::Config::parse(&toml_for(&home.uri(), &desk.uri())).unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let app = orouta::app(Arc::new(cfg), reqwest::Client::new());
@@ -64,7 +69,7 @@ async fn maps_to_ollama_chat() {
         })))
         .mount(&desk)
         .await;
-    let base = start(&home.uri(), &desk.uri()).await;
+    let base = start(&home, &desk).await;
     let res = client()
         .post(format!("{base}/v1/messages"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -78,11 +83,22 @@ async fn maps_to_ollama_chat() {
         .await
         .unwrap();
     assert_eq!(res.status(), 200);
-    assert!(home.received_requests().await.unwrap().is_empty());
-    let got = &desk.received_requests().await.unwrap()[0];
-    assert_eq!(got.url.path(), "/api/chat");
+    let home_chat = home
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .any(|r| r.url.path() == "/api/chat");
+    assert!(!home_chat);
+    let got = desk
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|r| r.url.path() == "/api/chat")
+        .unwrap();
     let body: Value = serde_json::from_slice(&got.body).unwrap();
-    assert_eq!(body["model"], "llama3:70b");
+    assert_eq!(body["model"], "claude-sonnet");
     assert_eq!(body["messages"][0]["role"], "system");
     assert_eq!(body["messages"][0]["content"], "be brief");
     assert_eq!(body["messages"][1]["role"], "user");
@@ -105,7 +121,7 @@ async fn non_stream_translates_json() {
         })))
         .mount(&desk)
         .await;
-    let base = start(&home.uri(), &desk.uri()).await;
+    let base = start(&home, &desk).await;
     let res = client()
         .post(format!("{base}/v1/messages"))
         .header("x-api-key", KEY)
@@ -150,7 +166,7 @@ async fn stream_ndjson_to_sse() {
         )
         .mount(&desk)
         .await;
-    let base = start(&home.uri(), &desk.uri()).await;
+    let base = start(&home, &desk).await;
     let res = client()
         .post(format!("{base}/v1/messages"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -183,7 +199,7 @@ async fn image_body_is_400() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
         .mount(&desk)
         .await;
-    let base = start(&home.uri(), &desk.uri()).await;
+    let base = start(&home, &desk).await;
     let res = client()
         .post(format!("{base}/v1/messages"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -199,8 +215,13 @@ async fn image_body_is_400() {
         .await
         .unwrap();
     assert_eq!(res.status(), 400);
-    assert!(home.received_requests().await.unwrap().is_empty());
-    assert!(desk.received_requests().await.unwrap().is_empty());
+    let desk_chat = desk
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .any(|r| r.url.path() == "/api/chat");
+    assert!(!desk_chat);
 }
 
 #[tokio::test]
@@ -212,7 +233,7 @@ async fn tools_body_is_400() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
         .mount(&desk)
         .await;
-    let base = start(&home.uri(), &desk.uri()).await;
+    let base = start(&home, &desk).await;
     let res = client()
         .post(format!("{base}/v1/messages"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -226,8 +247,13 @@ async fn tools_body_is_400() {
         .await
         .unwrap();
     assert_eq!(res.status(), 400);
-    assert!(home.received_requests().await.unwrap().is_empty());
-    assert!(desk.received_requests().await.unwrap().is_empty());
+    let desk_chat = desk
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .any(|r| r.url.path() == "/api/chat");
+    assert!(!desk_chat);
 }
 
 #[tokio::test]
@@ -244,7 +270,7 @@ async fn unknown_model_is_404() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
         .mount(&desk)
         .await;
-    let base = start(&home.uri(), &desk.uri()).await;
+    let base = start(&home, &desk).await;
     let res = client()
         .post(format!("{base}/v1/messages"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -257,6 +283,18 @@ async fn unknown_model_is_404() {
         .await
         .unwrap();
     assert_eq!(res.status(), 404);
-    assert!(home.received_requests().await.unwrap().is_empty());
-    assert!(desk.received_requests().await.unwrap().is_empty());
+    let home_chat = home
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .any(|r| r.url.path() == "/api/chat");
+    let desk_chat = desk
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .any(|r| r.url.path() == "/api/chat");
+    assert!(!home_chat);
+    assert!(!desk_chat);
 }

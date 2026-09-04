@@ -8,7 +8,7 @@ pub struct Config {
     pub keys: Vec<String>,
     pub default_id: String,
     pub upstreams: HashMap<String, Upstream>,
-    pub models: HashMap<String, ModelEntry>,
+    pub upstream_order: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -16,13 +16,6 @@ pub struct Upstream {
     pub id: String,
     pub base_url: String,
     pub api_key: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ModelEntry {
-    pub name: String,
-    pub upstream_id: String,
-    pub upstream_model: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -33,8 +26,6 @@ struct FileConfig {
     auth: FileAuth,
     #[serde(default)]
     upstream: Vec<FileUpstream>,
-    #[serde(default)]
-    model: Vec<FileModel>,
 }
 
 #[derive(Deserialize, Default)]
@@ -51,14 +42,6 @@ struct FileUpstream {
     api_key: Option<String>,
     #[serde(default)]
     default: bool,
-}
-
-#[derive(Deserialize)]
-struct FileModel {
-    name: String,
-    upstream: String,
-    #[serde(default)]
-    upstream_model: Option<String>,
 }
 
 fn default_bind() -> String {
@@ -79,6 +62,7 @@ impl Config {
 
     fn from_file(file: FileConfig) -> Result<Self, String> {
         let mut upstreams = HashMap::new();
+        let mut upstream_order = Vec::new();
         let mut default_id: Option<String> = None;
         for u in file.upstream {
             if upstreams.contains_key(&u.id) {
@@ -107,6 +91,7 @@ impl Config {
                 }
                 default_id = Some(u.id.clone());
             }
+            upstream_order.push(u.id.clone());
             upstreams.insert(
                 u.id.clone(),
                 Upstream {
@@ -118,45 +103,16 @@ impl Config {
         }
         let default_id = default_id
             .ok_or_else(|| "exactly one upstream must have default = true".to_string())?;
-        let mut models = HashMap::new();
-        for m in file.model {
-            if models.contains_key(&m.name) {
-                return Err(format!("duplicate model name: {}", m.name));
-            }
-            if !upstreams.contains_key(&m.upstream) {
-                return Err(format!(
-                    "model {} references unknown upstream {}",
-                    m.name, m.upstream
-                ));
-            }
-            let upstream_model =
-                m.upstream_model
-                    .and_then(|s| if s.is_empty() { None } else { Some(s) });
-            models.insert(
-                m.name.clone(),
-                ModelEntry {
-                    name: m.name,
-                    upstream_id: m.upstream,
-                    upstream_model,
-                },
-            );
-        }
         Ok(Config {
             bind: file.bind,
             keys: file.auth.keys,
             default_id,
             upstreams,
-            models,
+            upstream_order,
         })
     }
 
     pub fn default_upstream(&self) -> &Upstream {
         &self.upstreams[&self.default_id]
-    }
-
-    pub fn model_upstream(&self, name: &str) -> Option<(&ModelEntry, &Upstream)> {
-        let entry = self.models.get(name)?;
-        let up = self.upstreams.get(&entry.upstream_id)?;
-        Some((entry, up))
     }
 }

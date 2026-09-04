@@ -12,12 +12,3 @@ default = true
 [[upstream]]
 id = "desk"
 base_url = "http://192.168.1.20:11434"
-
-[[model]]
-name = "llama3"
-upstream = "home"
-
-[[model]]
-name = "claude-sonnet"
-upstream = "desk"
-upstream_model = "llama3:70b"

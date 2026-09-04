@@ -15,7 +15,7 @@ From the repo root:
 .agents/skills/verify-orouta/helpers/up.sh
 ```
 
-Builds `target/debug/orouta`, writes a temp TOML (auth key `sk-orouta-verify`, models `llama3` and `claude-sonnet`, dummy default upstream `http://127.0.0.1:1`), binds `127.0.0.1:<free-port>`, waits until `GET /api/tags` with the key returns 200. Prints **one JSON line on stdout** (logs on stderr). Same JSON at `.agents/skills/verify-orouta/current/meta.json`.
+Builds `target/debug/orouta`, writes a temp TOML (auth key `sk-orouta-verify`, dummy default upstream `http://127.0.0.1:1`), binds `127.0.0.1:<free-port>`, waits until `GET /api/tags` with the key returns 200. Prints **one JSON line on stdout** (logs on stderr). Same JSON at `.agents/skills/verify-orouta/current/meta.json`.
 
 ```json
 {"name":"verify-orouta","url":"http://127.0.0.1:50190","port":50190,"pid":1234,"config":"/var/folders/…/orouta.toml","logFile":"…/server.log","key":"sk-orouta-verify","workdir":"/var/folders/…"}
@@ -39,8 +39,8 @@ Harness is `curl` against `$url` with `Authorization: Bearer $key` (or `x-api-ke
 
 | Path | What it is |
 |---|---|
-| `GET /api/tags` | synthetic Ollama tag list from TOML |
-| `GET /v1/models` | synthetic OpenAI model list from TOML |
+| `GET /api/tags` | union of each host's `/api/tags` |
+| `GET /v1/models` | same names, OpenAI list shape |
 | `GET /v1/models/{id}` | one configured model or 404 |
 | `POST /api/chat` | byte-forward to the model's Ollama host |
 | `POST /v1/chat/completions` | byte-forward OpenAI-compat |

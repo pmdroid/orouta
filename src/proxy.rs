@@ -29,15 +29,15 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
         return anthropic::messages(state, body).await;
     }
     if method == Method::GET && path == "/api/tags" {
-        return list::tags(&state.config);
+        return list::tags(&state).await;
     }
     if method == Method::GET && path == "/v1/models" {
-        return list::openai_models(&state.config);
+        return list::openai_models(&state).await;
     }
     if method == Method::GET {
         if let Some(id) = path.strip_prefix("/v1/models/") {
             if !id.is_empty() {
-                return list::openai_model(&state.config, id);
+                return list::openai_model(&state, id).await;
             }
         }
     }
@@ -50,15 +50,12 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
     }
     let name = model::extract_name(&body);
     if let Some(name) = name {
-        if let Some((entry, upstream)) = state.config.model_upstream(&name) {
-            let body = if let Some(um) = &entry.upstream_model {
-                model::rewrite_model_fields(&body, um)
-                    .map(Bytes::from)
-                    .unwrap_or(body)
-            } else {
-                body
-            };
-            return forward(&state, method, &pq, &headers, body, upstream).await;
+        if let Some(upstream) = state
+            .catalog
+            .lookup(&state.config, &state.client, &name)
+            .await
+        {
+            return forward(&state, method, &pq, &headers, body, &upstream).await;
         }
         if model::is_inference(path) {
             return (
@@ -107,15 +104,23 @@ async fn forward_copy(
     body: Bytes,
 ) -> Response {
     let (source, dest) = model::copy_names(&body);
-    let su = source
-        .as_deref()
-        .and_then(|n| state.config.models.get(n))
-        .map(|m| m.upstream_id.as_str());
-    let du = dest
-        .as_deref()
-        .and_then(|n| state.config.models.get(n))
-        .map(|m| m.upstream_id.as_str());
-    let upstream = match (su, du) {
+    let su = match &source {
+        Some(n) => state
+            .catalog
+            .lookup(&state.config, &state.client, n)
+            .await
+            .map(|u| u.id),
+        None => None,
+    };
+    let du = match &dest {
+        Some(n) => state
+            .catalog
+            .lookup(&state.config, &state.client, n)
+            .await
+            .map(|u| u.id),
+        None => None,
+    };
+    let upstream = match (su.as_deref(), du.as_deref()) {
         (Some(a), Some(b)) if a != b => {
             return (
                 StatusCode::BAD_REQUEST,
@@ -123,10 +128,12 @@ async fn forward_copy(
             )
                 .into_response();
         }
-        (Some(a), Some(_)) => &state.config.upstreams[a],
-        _ => state.config.default_upstream(),
+        (Some(a), Some(_)) => state.config.upstreams[a].clone(),
+        (Some(a), None) => state.config.upstreams[a].clone(),
+        (None, Some(b)) => state.config.upstreams[b].clone(),
+        _ => state.config.default_upstream().clone(),
     };
-    forward(state, method, pq, headers, body, upstream).await
+    forward(state, method, pq, headers, body, &upstream).await
 }
 
 pub async fn forward(

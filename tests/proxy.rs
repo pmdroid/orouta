@@ -22,17 +22,33 @@ default = true
 [[upstream]]
 id = "desk"
 base_url = "{desk}"
-
-[[model]]
-name = "llama3"
-upstream = "home"
-
-[[model]]
-name = "claude-sonnet"
-upstream = "desk"
-upstream_model = "llama3:70b"
 "#
     )
+}
+
+async fn mount_tags(server: &MockServer, names: &[&str]) {
+    let models: Vec<Value> = names
+        .iter()
+        .map(|n| json!({"name": n, "model": n}))
+        .collect();
+    Mock::given(method("GET"))
+        .and(path("/api/tags"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"models": models})))
+        .mount(server)
+        .await;
+}
+
+async fn start_with(
+    home: &MockServer,
+    desk: &MockServer,
+    keys: &str,
+    home_api_key: &str,
+    home_models: &[&str],
+    desk_models: &[&str],
+) -> String {
+    mount_tags(home, home_models).await;
+    mount_tags(desk, desk_models).await;
+    start(&home.uri(), &desk.uri(), keys, home_api_key).await
 }
 
 async fn start(home: &str, desk: &str, keys: &str, home_api_key: &str) -> String {
@@ -54,7 +70,7 @@ fn client() -> reqwest::Client {
 async fn bearer_accepted() {
     let home = MockServer::start().await;
     let desk = MockServer::start().await;
-    let base = start(&home.uri(), &desk.uri(), r#""sk-orouta-alice""#, "").await;
+    let base = start_with(&home, &desk, r#""sk-orouta-alice""#, "", &[], &[]).await;
     let res = client()
         .get(format!("{base}/api/tags"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -68,7 +84,7 @@ async fn bearer_accepted() {
 async fn x_api_key_accepted() {
     let home = MockServer::start().await;
     let desk = MockServer::start().await;
-    let base = start(&home.uri(), &desk.uri(), r#""sk-orouta-alice""#, "").await;
+    let base = start_with(&home, &desk, r#""sk-orouta-alice""#, "", &[], &[]).await;
     let res = client()
         .get(format!("{base}/api/tags"))
         .header("x-api-key", KEY)
@@ -82,7 +98,7 @@ async fn x_api_key_accepted() {
 async fn missing_key_unauthorized() {
     let home = MockServer::start().await;
     let desk = MockServer::start().await;
-    let base = start(&home.uri(), &desk.uri(), r#""sk-orouta-alice""#, "").await;
+    let base = start_with(&home, &desk, r#""sk-orouta-alice""#, "", &[], &[]).await;
     let res = client()
         .get(format!("{base}/api/tags"))
         .send()
@@ -95,7 +111,7 @@ async fn missing_key_unauthorized() {
 async fn wrong_key_unauthorized() {
     let home = MockServer::start().await;
     let desk = MockServer::start().await;
-    let base = start(&home.uri(), &desk.uri(), r#""sk-orouta-alice""#, "").await;
+    let base = start_with(&home, &desk, r#""sk-orouta-alice""#, "", &[], &[]).await;
     let res = client()
         .get(format!("{base}/api/tags"))
         .header("Authorization", "Bearer sk-wrong")
@@ -109,7 +125,7 @@ async fn wrong_key_unauthorized() {
 async fn empty_keys_open() {
     let home = MockServer::start().await;
     let desk = MockServer::start().await;
-    let base = start(&home.uri(), &desk.uri(), "", "").await;
+    let base = start_with(&home, &desk, "", "", &[], &[]).await;
     let res = client()
         .get(format!("{base}/api/tags"))
         .send()
@@ -132,7 +148,15 @@ async fn chat_llama3_hits_home_only() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({"done": true})))
         .mount(&desk)
         .await;
-    let base = start(&home.uri(), &desk.uri(), r#""sk-orouta-alice""#, "").await;
+    let base = start_with(
+        &home,
+        &desk,
+        r#""sk-orouta-alice""#,
+        "",
+        &["llama3:latest"],
+        &["mistral"],
+    )
+    .await;
     let res = client()
         .post(format!("{base}/api/chat"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -141,8 +165,22 @@ async fn chat_llama3_hits_home_only() {
         .await
         .unwrap();
     assert_eq!(res.status(), 200);
-    assert_eq!(home.received_requests().await.unwrap().len(), 1);
-    assert!(desk.received_requests().await.unwrap().is_empty());
+    let home_chat = home
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/api/chat")
+        .count();
+    let desk_chat = desk
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/api/chat")
+        .count();
+    assert_eq!(home_chat, 1);
+    assert_eq!(desk_chat, 0);
 }
 
 #[tokio::test]
@@ -154,7 +192,15 @@ async fn chat_completions_forwards_upstream_api_key() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({"ok": true})))
         .mount(&home)
         .await;
-    let base = start(&home.uri(), &desk.uri(), r#""sk-orouta-alice""#, "sk-home").await;
+    let base = start_with(
+        &home,
+        &desk,
+        r#""sk-orouta-alice""#,
+        "sk-home",
+        &["llama3"],
+        &[],
+    )
+    .await;
     let body = json!({"model":"llama3","messages":[{"role":"user","content":"hi"}]});
     let res = client()
         .post(format!("{base}/v1/chat/completions"))
@@ -165,7 +211,13 @@ async fn chat_completions_forwards_upstream_api_key() {
         .await
         .unwrap();
     assert_eq!(res.status(), 200);
-    let got = &home.received_requests().await.unwrap()[0];
+    let got = home
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|r| r.url.path() == "/v1/chat/completions")
+        .unwrap();
     let auth = got
         .headers
         .get("authorization")
@@ -174,7 +226,13 @@ async fn chat_completions_forwards_upstream_api_key() {
     assert!(got.headers.get("x-api-key").is_none());
     let forwarded: Value = serde_json::from_slice(&got.body).unwrap();
     assert_eq!(forwarded["model"], "llama3");
-    assert!(desk.received_requests().await.unwrap().is_empty());
+    let desk_chat = desk
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .any(|r| r.url.path() == "/v1/chat/completions");
+    assert!(!desk_chat);
 }
 
 #[tokio::test]
@@ -191,7 +249,7 @@ async fn stream_body_matches_upstream() {
         )
         .mount(&home)
         .await;
-    let base = start(&home.uri(), &desk.uri(), r#""sk-orouta-alice""#, "").await;
+    let base = start_with(&home, &desk, r#""sk-orouta-alice""#, "", &["llama3"], &[]).await;
     let res = client()
         .post(format!("{base}/api/chat"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -224,7 +282,7 @@ async fn unknown_inference_model_is_404() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
         .mount(&desk)
         .await;
-    let base = start(&home.uri(), &desk.uri(), r#""sk-orouta-alice""#, "").await;
+    let base = start_with(&home, &desk, r#""sk-orouta-alice""#, "", &["llama3"], &[]).await;
     let res = client()
         .post(format!("{base}/api/chat"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -235,8 +293,20 @@ async fn unknown_inference_model_is_404() {
     assert_eq!(res.status(), 404);
     let v: Value = res.json().await.unwrap();
     assert_eq!(v["error"], "unknown model");
-    assert!(home.received_requests().await.unwrap().is_empty());
-    assert!(desk.received_requests().await.unwrap().is_empty());
+    let home_chat = home
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .any(|r| r.url.path() == "/api/chat");
+    let desk_chat = desk
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .any(|r| r.url.path() == "/api/chat");
+    assert!(!home_chat);
+    assert!(!desk_chat);
 }
 
 #[tokio::test]
@@ -253,7 +323,7 @@ async fn pull_unknown_name_uses_default() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status":"ok"})))
         .mount(&desk)
         .await;
-    let base = start(&home.uri(), &desk.uri(), r#""sk-orouta-alice""#, "").await;
+    let base = start_with(&home, &desk, r#""sk-orouta-alice""#, "", &["llama3"], &[]).await;
     let res = client()
         .post(format!("{base}/api/pull"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -262,23 +332,37 @@ async fn pull_unknown_name_uses_default() {
         .await
         .unwrap();
     assert_eq!(res.status(), 200);
-    assert_eq!(home.received_requests().await.unwrap().len(), 1);
-    assert!(desk.received_requests().await.unwrap().is_empty());
+    let home_pull = home
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/api/pull")
+        .count();
+    let desk_pull = desk
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/api/pull")
+        .count();
+    assert_eq!(home_pull, 1);
+    assert_eq!(desk_pull, 0);
 }
 
 #[tokio::test]
-async fn tags_and_models_from_config() {
+async fn tags_and_models_from_hosts() {
     let home = MockServer::start().await;
     let desk = MockServer::start().await;
-    Mock::given(method("GET"))
-        .respond_with(ResponseTemplate::new(500))
-        .mount(&home)
-        .await;
-    Mock::given(method("GET"))
-        .respond_with(ResponseTemplate::new(500))
-        .mount(&desk)
-        .await;
-    let base = start(&home.uri(), &desk.uri(), r#""sk-orouta-alice""#, "").await;
+    let base = start_with(
+        &home,
+        &desk,
+        r#""sk-orouta-alice""#,
+        "",
+        &["llama3:latest"],
+        &["claude-sonnet"],
+    )
+    .await;
     let tags: Value = client()
         .get(format!("{base}/api/tags"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -294,7 +378,7 @@ async fn tags_and_models_from_config() {
         .iter()
         .map(|m| m["name"].as_str().unwrap())
         .collect();
-    assert!(names.contains(&"llama3"));
+    assert!(names.contains(&"llama3:latest"));
     assert!(names.contains(&"claude-sonnet"));
     let models: Value = client()
         .get(format!("{base}/v1/models"))
@@ -311,8 +395,6 @@ async fn tags_and_models_from_config() {
         .iter()
         .map(|m| m["id"].as_str().unwrap())
         .collect();
-    assert!(ids.contains(&"llama3"));
+    assert!(ids.contains(&"llama3:latest"));
     assert!(ids.contains(&"claude-sonnet"));
-    assert!(home.received_requests().await.unwrap().is_empty());
-    assert!(desk.received_requests().await.unwrap().is_empty());
 }

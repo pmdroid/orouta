@@ -9,25 +9,6 @@ pub fn extract_name(body: &[u8]) -> Option<String> {
     obj.get("name").and_then(|x| x.as_str()).map(str::to_string)
 }
 
-pub fn rewrite_model_fields(body: &[u8], upstream_model: &str) -> Option<Vec<u8>> {
-    let mut v: Value = serde_json::from_slice(body).ok()?;
-    let obj = v.as_object_mut()?;
-    let mut changed = false;
-    if obj.contains_key("model") {
-        obj.insert("model".into(), Value::String(upstream_model.to_string()));
-        changed = true;
-    }
-    if obj.contains_key("name") {
-        obj.insert("name".into(), Value::String(upstream_model.to_string()));
-        changed = true;
-    }
-    if changed {
-        serde_json::to_vec(&v).ok()
-    } else {
-        None
-    }
-}
-
 pub fn is_inference(path: &str) -> bool {
     matches!(
         path,

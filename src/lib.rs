@@ -1,5 +1,6 @@
 mod anthropic;
 mod auth;
+mod catalog;
 mod config;
 mod list;
 mod model;
@@ -7,6 +8,7 @@ mod proxy;
 
 pub use config::Config;
 
+use crate::catalog::Catalog;
 use axum::extract::DefaultBodyLimit;
 use axum::middleware;
 use axum::Router;
@@ -18,10 +20,15 @@ pub const MAX_BODY: usize = 32 * 1024 * 1024;
 pub struct AppState {
     pub config: Arc<Config>,
     pub client: reqwest::Client,
+    pub catalog: Arc<Catalog>,
 }
 
 pub fn app(config: Arc<Config>, client: reqwest::Client) -> Router {
-    let state = AppState { config, client };
+    let state = AppState {
+        config,
+        client,
+        catalog: Arc::new(Catalog::new()),
+    };
     Router::new()
         .fallback(proxy::handle)
         .layer(DefaultBodyLimit::max(MAX_BODY))

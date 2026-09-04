@@ -11,7 +11,7 @@
 
 ## How to get to it (user POV)
 
-- Ollama CLI/SDK against `OLLAMA_HOST=$URL` with `model` set to a configured name.
+- Ollama CLI/SDK against `OLLAMA_HOST=$URL` with `model` set to a name a host listed.
 - OpenAI SDK `base_url=$URL/v1` and `api_key=$KEY`.
 
 ## Driving it with curl
@@ -31,4 +31,4 @@ Preconditions:
 
 - Default `up.sh` home is `http://127.0.0.1:1`. Chat will fail until `--home-url`.
 - Path is forwarded as-is. `/v1/messages` is the Anthropic feature, not this one.
-- `upstream_model` rewrites JSON `model`/`name` only when those keys already exist.
+- Routing uses each host's `/api/tags`. A name should exist on one host.

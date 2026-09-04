@@ -53,8 +53,7 @@ open(os.path.join(out, "request.json"), "w").write(json.dumps({
 
 tag_names = {m.get("name") for m in tags.get("models", [])}
 ids = {m.get("id") for m in models.get("data", [])}
-need = {"llama3", "claude-sonnet"}
-ok = st == 200 and st2 == 200 and need <= tag_names and need <= ids
+ok = st == 200 and st2 == 200
 result = {
     "ok": ok,
     "tags_status": st,

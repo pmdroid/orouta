@@ -45,14 +45,6 @@ id = "home"
 base_url = "${HOME_URL}"
 api_key = ""
 default = true
-
-[[model]]
-name = "llama3"
-upstream = "home"
-
-[[model]]
-name = "claude-sonnet"
-upstream = "home"
 EOF
 
 cargo build --quiet --manifest-path "$ROOT/Cargo.toml"

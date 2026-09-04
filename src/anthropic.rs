@@ -32,7 +32,11 @@ pub async fn messages(state: AppState, body: Bytes) -> Response {
                 .into_response();
         }
     };
-    let Some((entry, upstream)) = state.config.model_upstream(&client_model) else {
+    let Some(upstream) = state
+        .catalog
+        .lookup(&state.config, &state.client, &client_model)
+        .await
+    else {
         return (
             StatusCode::NOT_FOUND,
             Json(json!({"error": "unknown model"})),
@@ -46,10 +50,7 @@ pub async fn messages(state: AppState, body: Bytes) -> Response {
         )
             .into_response();
     }
-    let ollama_model = entry
-        .upstream_model
-        .clone()
-        .unwrap_or_else(|| client_model.clone());
+    let ollama_model = client_model.clone();
     let ollama_body = match to_ollama(&parsed, &ollama_model) {
         Ok(v) => v,
         Err(msg) => {
@@ -71,9 +72,9 @@ pub async fn messages(state: AppState, body: Bytes) -> Response {
         }
     };
     if stream {
-        stream_chat(&state, upstream, payload, client_model).await
+        stream_chat(&state, &upstream, payload, client_model).await
     } else {
-        complete_chat(&state, upstream, payload, client_model).await
+        complete_chat(&state, &upstream, payload, client_model).await
     }
 }
 
