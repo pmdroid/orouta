@@ -144,10 +144,22 @@ pub async fn forward(
     if let Some(key) = &upstream.api_key {
         builder = builder.header(reqwest::header::AUTHORIZATION, format!("Bearer {key}"));
     }
+    let stats = &state.stats[&upstream.id];
+    stats.request_started();
+    let start = std::time::Instant::now();
     match builder.send().await {
-        Ok(resp) => pipe_response(resp).await,
+        Ok(resp) => {
+            let status = resp.status();
+            if status.is_success() {
+                stats.request_finished(start.elapsed(), None);
+            } else {
+                stats.request_finished(start.elapsed(), Some(format!("http {}", status.as_u16())));
+            }
+            pipe_response(resp).await
+        }
         Err(e) => {
             tracing::error!(error = %e, "upstream");
+            stats.request_finished(start.elapsed(), Some(e.to_string()));
             (
                 StatusCode::BAD_GATEWAY,
                 Json(json!({"error": "upstream unavailable"})),

@@ -13,6 +13,7 @@ pub struct Catalog {
 
 struct Inner {
     by_name: HashMap<String, String>,
+    by_host: HashMap<String, Vec<Value>>,
     tags: Vec<Value>,
     fetched: Option<Instant>,
 }
@@ -22,6 +23,7 @@ impl Catalog {
         Self {
             inner: RwLock::new(Inner {
                 by_name: HashMap::new(),
+                by_host: HashMap::new(),
                 tags: Vec::new(),
                 fetched: None,
             }),
@@ -30,6 +32,7 @@ impl Catalog {
 
     pub async fn refresh(&self, config: &Config, client: &reqwest::Client) {
         let mut by_name = HashMap::new();
+        let mut by_host: HashMap<String, Vec<Value>> = HashMap::new();
         let mut tags = Vec::new();
         for id in &config.upstream_order {
             let Some(up) = config.upstreams.get(id) else {
@@ -52,7 +55,9 @@ impl Catalog {
             let Some(models) = v.get("models").and_then(|m| m.as_array()) else {
                 continue;
             };
+            let mut host_models = Vec::new();
             for m in models {
+                host_models.push(m.clone());
                 let Some(name) = m
                     .get("name")
                     .or_else(|| m.get("model"))
@@ -68,9 +73,11 @@ impl Catalog {
                     by_name.entry(stem.to_string()).or_insert(id.clone());
                 }
             }
+            by_host.insert(id.clone(), host_models);
         }
         let mut g = self.inner.write().await;
         g.by_name = by_name;
+        g.by_host = by_host;
         g.tags = tags;
         g.fetched = Some(Instant::now());
     }
@@ -119,6 +126,16 @@ impl Catalog {
                     .map(str::to_string)
             })
             .collect()
+    }
+
+    pub async fn models_by_host(
+        &self,
+        config: &Config,
+        client: &reqwest::Client,
+    ) -> HashMap<String, Vec<Value>> {
+        self.ensure(config, client, false).await;
+        let g = self.inner.read().await;
+        g.by_host.clone()
     }
 
     pub async fn tags_body(&self, config: &Config, client: &reqwest::Client) -> Value {
