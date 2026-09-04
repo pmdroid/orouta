@@ -2,6 +2,8 @@
 name = "orouta"
 version = "0.1.0"
 edition = "2021"
+description = "Route Ollama-compatible requests to hosts by model name"
+readme = "README.md"
 
 [dependencies]
 axum = "0.8"

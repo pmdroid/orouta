@@ -2,3 +2,5 @@
 **/*.rs.bk
 orouta.toml
 .DS_Store
+.agents/skills/verify-orouta/current/
+.agents/skills/verify-orouta/evidence/

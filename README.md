@@ -1,5 +1,9 @@
 # orouta
 
+<p align="center">
+  <img src="docs/logo.png" alt="orouta" width="280">
+</p>
+
 Several Ollama hosts behind one port. The JSON `model` (or `name`) picks the host. Anthropic `POST /v1/messages` is translated to Ollama `/api/chat`; everything else is byte-forwarded.
 
 ## Run
@@ -13,7 +17,7 @@ Default bind is `0.0.0.0:11434`. `--config` defaults to `orouta.toml`.
 
 ## Config
 
-See `orouta.toml.example`.
+See `orouta.toml.example`. Logo: `docs/logo.png`. Favicons: `docs/favicons/`.
 
 - `[[model]]` names are what clients send. `upstream` selects an Ollama host. `upstream_model` rewrites `model`/`name` when those keys already exist.
 - Exactly one `[[upstream]]` must have `default = true`.
