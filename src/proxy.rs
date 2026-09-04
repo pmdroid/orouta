@@ -158,7 +158,8 @@ async fn pull(
     body: Bytes,
 ) -> Response {
     let host = query_param(uri.query(), "host");
-    let upstream = match state.config.resolve_pull_host(host) {
+    let config = state.config.load();
+    let upstream = match config.resolve_pull_host(host) {
         Ok(u) => u,
         Err(e) => {
             return (StatusCode::BAD_REQUEST, Json(json!({"error": e}))).into_response();

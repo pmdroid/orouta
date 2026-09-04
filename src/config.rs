@@ -107,6 +107,14 @@ impl Config {
         if file.host.trim().is_empty() {
             return Err("host is required".into());
         }
+        if let Some(id) = &file.pull_host {
+            if id.trim().is_empty() || !upstream_order.contains(id) {
+                return Err(format!(
+                    "pull_host must be one of: {}",
+                    upstream_order.join(", ")
+                ));
+            }
+        }
         Ok(Config {
             host: file.host,
             port: file.port,
@@ -131,23 +139,22 @@ impl Config {
 
     pub fn resolve_pull_host(&self, host: Option<&str>) -> Result<Upstream, String> {
         let selected = match host.or(self.pull_host.as_deref()) {
-            Some(id) => id.to_string(),
+            Some(id) => self.upstreams.get(id).ok_or_else(|| {
+                format!(
+                    "unknown pull host {id}; available hosts: {}",
+                    self.upstream_order.join(", ")
+                )
+            })?,
             None => {
-                if self.upstream_order.len() == 1 {
-                    self.upstream_order[0].clone()
-                } else {
+                if self.upstream_order.len() != 1 {
                     return Err(format!(
                         "no pull host selected; available hosts: {}",
                         self.upstream_order.join(", ")
                     ));
                 }
+                &self.upstreams[&self.upstream_order[0]]
             }
         };
-        self.upstreams.get(&selected).cloned().ok_or_else(|| {
-            format!(
-                "unknown pull host {selected}; available hosts: {}",
-                self.upstream_order.join(", ")
-            )
-        })
+        Ok(selected.clone())
     }
 }

@@ -41,7 +41,7 @@ async fn start(toml: &str) -> String {
     let cfg = orouta::Config::parse(toml).unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let app = orouta::app(Arc::new(cfg), reqwest::Client::new());
+    let app = orouta::app(Arc::new(cfg), reqwest::Client::new(), None);
     tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
     });
@@ -50,6 +50,16 @@ async fn start(toml: &str) -> String {
 
 fn client() -> reqwest::Client {
     reqwest::Client::new()
+}
+
+#[test]
+fn pull_host_must_name_an_upstream() {
+    let toml = toml_for(&[("home", "http://127.0.0.1:1")], Some("nope"));
+    assert!(orouta::Config::parse(&toml).is_err());
+    let toml = toml_for(&[("home", "http://127.0.0.1:1")], Some(""));
+    assert!(orouta::Config::parse(&toml).is_err());
+    let toml = toml_for(&[("home", "http://127.0.0.1:1")], Some("home"));
+    assert!(orouta::Config::parse(&toml).is_ok());
 }
 
 async fn pull_count(server: &MockServer) -> usize {
