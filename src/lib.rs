@@ -29,16 +29,17 @@ pub struct AppState {
 }
 
 pub fn app(config: Arc<Config>, client: reqwest::Client) -> Router {
-    let stats = config
+    let stats: HashMap<String, HostStats> = config
         .upstream_order
         .iter()
         .map(|id| (id.clone(), HostStats::default()))
         .collect();
+    let stats = Arc::new(stats);
     let state = AppState {
         config,
         client,
-        catalog: Arc::new(Catalog::new()),
-        stats: Arc::new(stats),
+        catalog: Arc::new(Catalog::new(stats.clone())),
+        stats,
     };
     Router::new()
         .route("/status", get(status::page))

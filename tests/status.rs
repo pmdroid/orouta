@@ -46,7 +46,11 @@ async fn start_with(
 ) -> String {
     mount_tags(home, home_models).await;
     mount_tags(desk, desk_models).await;
-    let cfg = orouta::Config::parse(&toml_for(&home.uri(), &desk.uri(), keys)).unwrap();
+    serve(&home.uri(), &desk.uri(), keys).await
+}
+
+async fn serve(home: &str, desk: &str, keys: &str) -> String {
+    let cfg = orouta::Config::parse(&toml_for(home, desk, keys)).unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let app = orouta::app(Arc::new(cfg), reqwest::Client::new());
@@ -120,14 +124,46 @@ async fn json_reports_per_host_state() {
     assert_eq!(hosts.len(), 2);
     assert_eq!(hosts[0]["id"], "home");
     assert_eq!(hosts[0]["base_url"], home.uri().as_str());
-    assert_eq!(hosts[0]["reachable"], false);
+    assert_eq!(hosts[0]["reachable"], true);
+    assert!(hosts[0]["latency_ms"].is_u64());
     assert_eq!(hosts[0]["models"][0], "llama3:latest");
     assert_eq!(hosts[0]["requests_total"], 0);
     assert_eq!(hosts[0]["errors_total"], 0);
     assert_eq!(hosts[0]["in_flight"], 0);
     assert!(hosts[0]["last_error"].is_null());
     assert_eq!(hosts[1]["id"], "desk");
+    assert_eq!(hosts[1]["reachable"], true);
     assert_eq!(hosts[1]["models"][0], "mistral");
+}
+
+#[tokio::test]
+async fn probe_failure_marks_host_down() {
+    let home = MockServer::start().await;
+    let desk = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/tags"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&home)
+        .await;
+    mount_tags(&desk, &["mistral"]).await;
+    let base = serve(&home.uri(), &desk.uri(), r#""sk-orouta-alice""#).await;
+    let v: Value = client()
+        .get(format!("{base}/status.json"))
+        .header("Authorization", format!("Bearer {KEY}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let hosts = v["hosts"].as_array().unwrap();
+    let home_stats = hosts.iter().find(|h| h["id"] == "home").unwrap();
+    let desk_stats = hosts.iter().find(|h| h["id"] == "desk").unwrap();
+    assert_eq!(home_stats["reachable"], false);
+    assert_eq!(home_stats["last_error"], "tags http 500");
+    assert_eq!(home_stats["requests_total"], 0);
+    assert_eq!(desk_stats["reachable"], true);
+    assert!(desk_stats["last_error"].is_null());
 }
 
 #[tokio::test]

@@ -1,6 +1,8 @@
 use crate::config::{Config, Upstream};
+use crate::status::HostStats;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
@@ -9,6 +11,7 @@ const PROBE: Duration = Duration::from_secs(2);
 
 pub struct Catalog {
     inner: RwLock<Inner>,
+    stats: Arc<HashMap<String, HostStats>>,
 }
 
 struct Inner {
@@ -19,7 +22,7 @@ struct Inner {
 }
 
 impl Catalog {
-    pub fn new() -> Self {
+    pub fn new(stats: Arc<HashMap<String, HostStats>>) -> Self {
         Self {
             inner: RwLock::new(Inner {
                 by_name: HashMap::new(),
@@ -27,6 +30,7 @@ impl Catalog {
                 tags: Vec::new(),
                 fetched: None,
             }),
+            stats,
         }
     }
 
@@ -43,11 +47,28 @@ impl Catalog {
             if let Some(key) = &up.api_key {
                 req = req.bearer_auth(key);
             }
-            let Ok(resp) = req.send().await else {
-                continue;
+            let host_stats = self.stats.get(id);
+            let start = Instant::now();
+            let resp = match req.send().await {
+                Ok(r) => r,
+                Err(e) => {
+                    if let Some(s) = host_stats {
+                        s.probe_finished(start.elapsed(), Some(e.to_string()));
+                    }
+                    continue;
+                }
             };
             if !resp.status().is_success() {
+                if let Some(s) = host_stats {
+                    s.probe_finished(
+                        start.elapsed(),
+                        Some(format!("tags http {}", resp.status().as_u16())),
+                    );
+                }
                 continue;
+            }
+            if let Some(s) = host_stats {
+                s.probe_finished(start.elapsed(), None);
             }
             let Ok(v) = resp.json::<Value>().await else {
                 continue;
@@ -128,14 +149,29 @@ impl Catalog {
             .collect()
     }
 
-    pub async fn models_by_host(
+    pub async fn model_names_by_host(
         &self,
         config: &Config,
         client: &reqwest::Client,
-    ) -> HashMap<String, Vec<Value>> {
+    ) -> HashMap<String, Vec<String>> {
         self.ensure(config, client, false).await;
         let g = self.inner.read().await;
-        g.by_host.clone()
+        g.by_host
+            .iter()
+            .map(|(id, ms)| {
+                (
+                    id.clone(),
+                    ms.iter()
+                        .filter_map(|m| {
+                            m.get("name")
+                                .or_else(|| m.get("model"))
+                                .and_then(|x| x.as_str())
+                                .map(str::to_string)
+                        })
+                        .collect(),
+                )
+            })
+            .collect()
     }
 
     pub async fn tags_body(&self, config: &Config, client: &reqwest::Client) -> Value {

@@ -36,9 +36,27 @@ impl HostStats {
             }
             Some(msg) => {
                 self.errors_total.fetch_add(1, Ordering::Relaxed);
-                *self.last_error.lock().unwrap() = Some(msg);
+                self.set_last_error(msg);
             }
         }
+    }
+
+    pub fn probe_finished(&self, latency: Duration, error: Option<String>) {
+        match error {
+            None => {
+                self.reachable.store(true, Ordering::Relaxed);
+                self.latency_ms
+                    .store(latency.as_millis() as u64, Ordering::Relaxed);
+            }
+            Some(msg) => {
+                self.reachable.store(false, Ordering::Relaxed);
+                self.set_last_error(msg);
+            }
+        }
+    }
+
+    fn set_last_error(&self, msg: String) {
+        *self.last_error.lock().unwrap_or_else(|p| p.into_inner()) = Some(msg);
     }
 
     pub fn reachable(&self) -> bool {
@@ -62,24 +80,15 @@ impl HostStats {
     }
 
     pub fn last_error(&self) -> Option<String> {
-        self.last_error.lock().unwrap().clone()
+        self.last_error
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
     }
 }
 
-fn host_models(by_host: &HashMap<String, Vec<Value>>, id: &str) -> Vec<String> {
-    by_host
-        .get(id)
-        .map(|ms| {
-            ms.iter()
-                .filter_map(|m| {
-                    m.get("name")
-                        .or_else(|| m.get("model"))
-                        .and_then(|x| x.as_str())
-                        .map(str::to_string)
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+fn host_models(by_host: &HashMap<String, Vec<String>>, id: &str) -> Vec<String> {
+    by_host.get(id).cloned().unwrap_or_default()
 }
 
 fn esc(s: &str) -> String {
@@ -92,7 +101,7 @@ fn esc(s: &str) -> String {
 pub async fn page(State(state): State<AppState>) -> Response {
     let by_host = state
         .catalog
-        .models_by_host(&state.config, &state.client)
+        .model_names_by_host(&state.config, &state.client)
         .await;
     let mut rows = String::new();
     let mut hosts_up = 0u64;
@@ -133,7 +142,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
             Some(e) => format!(r#"<span class="err">{}</span>"#, esc(&e)),
             None => r#"<span class="url">&mdash;</span>"#.to_string(),
         };
-        write!(
+        let _ = write!(
             rows,
             r#"<tr><td><b>{}</b><br><span class="url">{}</span><br>{}</td><td>{}</td><td class="num" data-label="models">{}</td><td class="num" data-label="requests">{}</td><td class="num" data-label="errors">{}</td><td class="num" data-label="in-flight">{}</td><td>{}</td></tr>"#,
             esc(id),
@@ -145,8 +154,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
             errs,
             stats.in_flight(),
             last_err
-        )
-        .unwrap();
+        );
     }
     let n_hosts = state.config.upstream_order.len();
     let html = format!(
@@ -186,7 +194,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
 pub async fn json(State(state): State<AppState>) -> Response {
     let by_host = state
         .catalog
-        .models_by_host(&state.config, &state.client)
+        .model_names_by_host(&state.config, &state.client)
         .await;
     let hosts: Vec<Value> = state
         .config

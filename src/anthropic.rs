@@ -197,10 +197,10 @@ async fn complete_chat(
         );
         return proxy::pipe_response(resp).await;
     }
-    stats.request_finished(start.elapsed(), None);
     let ollama: Value = match resp.json().await {
         Ok(v) => v,
         Err(_) => {
+            stats.request_finished(start.elapsed(), Some("upstream invalid json".to_string()));
             return (
                 StatusCode::BAD_GATEWAY,
                 Json(json!({"error": "upstream invalid json"})),
@@ -208,6 +208,7 @@ async fn complete_chat(
                 .into_response();
         }
     };
+    stats.request_finished(start.elapsed(), None);
     let text = ollama
         .pointer("/message/content")
         .and_then(|v| v.as_str())
