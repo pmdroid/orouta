@@ -29,7 +29,7 @@ Ready means that line exists and `doctor.sh` passes. Teardown is `helpers/down.s
 .agents/skills/verify-orouta/helpers/doctor.sh
 ```
 
-Reads `current/meta.json`. Checks, in order: port is not `11434` → pid is alive → `GET /api/tags` with Bearer key is 200 → body lists `llama3` and `claude-sonnet`. Prints `/api/tags` JSON so you know the build you are driving.
+Reads `current/meta.json`. Checks, in order: port is not `11434` → pid is alive → `GET /api/tags` with Bearer key is 200. Prints `/api/tags` JSON so you know the build you are driving.
 
 Pass an explicit meta file: `helpers/doctor.sh path/to/meta.json`.
 
@@ -41,7 +41,7 @@ Harness is `curl` against `$url` with `Authorization: Bearer $key` (or `x-api-ke
 |---|---|
 | `GET /api/tags` | union of each host's `/api/tags` |
 | `GET /v1/models` | same names, OpenAI list shape |
-| `GET /v1/models/{id}` | one configured model or 404 |
+| `GET /v1/models/{id}` | one name a host listed, or 404 |
 | `POST /api/chat` | byte-forward to the model's Ollama host |
 | `POST /v1/chat/completions` | byte-forward OpenAI-compat |
 | `POST /v1/messages` | Anthropic dialect → Ollama `/api/chat` |
@@ -53,7 +53,7 @@ List models (no upstream needed):
   --dir ".agents/skills/verify-orouta/evidence/run-tags"
 ```
 
-Reads `current/meta.json`. Writes request/response JSON under `--dir`. Exit 0 only if both lists contain `llama3` and `claude-sonnet`.
+Reads `current/meta.json`. Writes request/response JSON under `--dir`. Exit 0 if both lists return 200.
 
 Auth:
 

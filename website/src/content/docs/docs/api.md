@@ -9,7 +9,7 @@ Point clients at orouta the same way you would point them at Ollama.
 
 `POST /api/chat`, `/api/generate`, `/api/embed`, `/api/pull`, and the rest of the Ollama HTTP API are forwarded to the host that listed `model` or `name` in `/api/tags`. Streaming is passed through.
 
-Unknown names return `404` `{"error":"unknown model"}`. Pull a new model on the Ollama host directly for now.
+Unknown names return `404` `{"error":"unknown model"}`. There is no download map in config. Pull a new model on the Ollama host (`ollama pull …` against that machine's `:11434`). After it shows up in that host's tags, orouta will route it.
 
 ## OpenAI
 

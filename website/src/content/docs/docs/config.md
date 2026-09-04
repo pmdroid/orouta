@@ -29,7 +29,9 @@ id = "desk"
 base_url = "http://192.168.1.20:11434"
 ```
 
-orouta calls `GET /api/tags` on each host and routes by those names. Put a given model on one host. Clients can send `llama3` when the host reports `llama3:latest`.
+There is no model list in the TOML. orouta calls `GET /api/tags` on each host and routes by those names. Put a given model on one host. Clients can send `llama3` when the host reports `llama3:latest`.
+
+To download a new model, run `ollama pull` on that Ollama machine. orouta will see it on the next tags refresh. `POST /api/pull` through orouta only works if some host already lists that name.
 
 Each remote Ollama must listen on `0.0.0.0`, not only loopback. Otherwise orouta gets connection refused on the LAN IP. How to set that on macOS, Linux, and Windows is in [Expose Ollama](/docs/ollama-host/). Localhost-only Ollama is fine for an upstream of `http://127.0.0.1:11434`.
 
