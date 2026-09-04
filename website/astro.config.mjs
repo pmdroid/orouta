@@ -20,6 +20,7 @@ export default defineConfig({
         },
       ],
       customCss: ['./src/styles/starlight.css'],
+      components: { Head: './src/components/StarlightHead.astro' },
       expressiveCode: {
         themes: ['everforest-dark', 'everforest-light'],
       },
