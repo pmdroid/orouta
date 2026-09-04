@@ -9,4 +9,5 @@ Ollama's own `/api/*` and `/v1/*` paths are forwarded as-is. `POST /v1/messages`
 
 - [Install](/docs/install/)
 - [Config](/docs/config/)
+- [Expose Ollama](/docs/ollama-host/)
 - [API](/docs/api/)

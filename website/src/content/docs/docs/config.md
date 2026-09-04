@@ -31,13 +31,7 @@ base_url = "http://192.168.1.20:11434"
 
 List hosts only. orouta calls `GET /api/tags` on each one and builds the model list. Put a given model name on one host. Clients can send `llama3` when the host reports `llama3:latest`.
 
-Each remote Ollama must listen on `0.0.0.0`, not only loopback. Otherwise orouta gets connection refused on the LAN IP.
-
-```sh
-export OLLAMA_HOST=0.0.0.0:11434
-```
-
-Then restart Ollama on that machine. Localhost-only Ollama is fine for an upstream of `http://127.0.0.1:11434`.
+Each remote Ollama must listen on `0.0.0.0`, not only loopback. Otherwise orouta gets connection refused on the LAN IP. How to set that on macOS, Linux, and Windows is in [Expose Ollama](/docs/ollama-host/). Localhost-only Ollama is fine for an upstream of `http://127.0.0.1:11434`.
 
 `auth.keys` empty means no client auth. Otherwise send `Authorization: Bearer` or `x-api-key`.
 
