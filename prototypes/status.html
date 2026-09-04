@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>orouta — status</title>
+<style>
+  :root {
+    --bg: #070b09;
+    --panel: #101612;
+    --line: #2a3d34;
+    --text: #e8dcc4;
+    --muted: #8a9a8c;
+    --accent: #c4a574;
+    --ok: #8a9a8c;
+    --bad: #c96f5a;
+  }
+  * { box-sizing: border-box; }
+  html, body { max-width: 100%; overflow-x: hidden; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+  header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: 0.02em; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    flex: 1 1 72px;
+    min-width: 0;
+  }
+  @media (max-width: 480px) { .stat { flex-basis: 40%; } }
+  .stat b { display: block; font-size: 20px; font-weight: 600; }
+  .stat small { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+  tr:last-child td { border-bottom: none; }
+  td b { font-weight: 600; }
+  .url { color: var(--muted); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  th.num { text-align: right; }
+  .up { color: var(--ok); }
+  .down { color: var(--bad); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--ok); }
+  .dot.down { background: var(--bad); }
+  .err { color: var(--bad); font-size: 12px; }
+  .model { display: inline-block; background: #0a0f0c; border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; margin: 2px 4px 2px 0; font-size: 12px; color: var(--text); }
+  footer { color: var(--muted); margin-top: 20px; font-size: 12px; }
+  a { color: var(--accent); text-decoration: none; }
+  @media (max-width: 720px) {
+    table, thead, tbody, tr, td, th { display: block; }
+    thead { display: none; }
+    tr { border-bottom: 1px solid var(--line); padding: 12px 0; }
+    td { border: none; padding: 2px 12px; }
+    td.num { text-align: left; }
+    .num::before { content: attr(data-label); color: var(--muted); margin-right: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>orouta <span>/ status</span></h1>
+  </header>
+  <p class="sub">3 hosts &middot; refreshed every 15s from <code>/api/tags</code> &middot; <a href="/status.json">JSON</a></p>
+
+  <div class="summary">
+    <div class="stat"><b>2/3</b><small>hosts up</small></div>
+    <div class="stat"><b>14</b><small>models routable</small></div>
+    <div class="stat"><b>1,284</b><small>requests today</small></div>
+    <div class="stat"><b>17</b><small>errors</small></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Host</th>
+        <th>Reachable</th>
+        <th class="num">Models</th>
+        <th class="num">Requests</th>
+        <th class="num">Errors</th>
+        <th class="num">In-flight</th>
+        <th>Last error</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>home</b><br><span class="url">http://192.168.1.10:11434</span><br>
+          <span class="model">llama3.1:8b</span><span class="model">qwen2.5:14b</span><span class="model">nomic-embed-text</span></td>
+        <td><span class="up">&#9679; up</span><br><span class="url">12ms</span></td>
+        <td class="num" data-label="models">3</td>
+        <td class="num" data-label="requests">812</td>
+        <td class="num" data-label="errors">2</td>
+        <td class="num" data-label="in-flight">1</td>
+        <td><span class="url">4h ago &middot; connection reset</span></td>
+      </tr>
+      <tr>
+        <td><b>desk</b><br><span class="url">http://192.168.1.20:11434</span><br>
+          <span class="model">llama3.1:8b</span><span class="model">deepseek-r1:32b</span><span class="model">mistral-nemo</span><span class="model">gemma3:27b</span></td>
+        <td><span class="up">&#9679; up</span><br><span class="url">31ms</span></td>
+        <td class="num" data-label="models">4</td>
+        <td class="num" data-label="requests">472</td>
+        <td class="num" data-label="errors">0</td>
+        <td class="num" data-label="in-flight">0</td>
+        <td><span class="url">&mdash;</span></td>
+      </tr>
+      <tr>
+        <td><b>laptop</b><br><span class="url">http://192.168.1.30:11434</span><br>
+          <span class="model">phi4</span></td>
+        <td><span class="dot down"></span><span class="down">down</span><br><span class="url">last ok 38m ago</span></td>
+        <td class="num" data-label="models">1</td>
+        <td class="num" data-label="requests">0</td>
+        <td class="num" data-label="errors">15</td>
+        <td class="num" data-label="in-flight">0</td>
+        <td><span class="err">connect timeout after 2s</span><br><span class="url">38m ago &middot; 15 consecutive</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <footer>orouta v0.1.0 &middot; page reloads every 15s &middot; prototype, static data</footer>
+</div>
+</body>
+</html>
