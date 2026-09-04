@@ -175,7 +175,7 @@ async fn complete_chat(
     if let Some(key) = &upstream.api_key {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {key}"));
     }
-    let stats = &state.stats[&upstream.id];
+    let stats = state.stats_for(&upstream.id);
     stats.request_started();
     let start = std::time::Instant::now();
     let resp = match builder.send().await {
@@ -262,7 +262,7 @@ async fn stream_chat(
     if let Some(key) = &upstream.api_key {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {key}"));
     }
-    let stats = &state.stats[&upstream.id];
+    let stats = state.stats_for(&upstream.id);
     stats.request_started();
     let start = std::time::Instant::now();
     let resp = match builder.send().await {

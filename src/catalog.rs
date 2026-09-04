@@ -12,7 +12,7 @@ const PROBE: Duration = Duration::from_secs(2);
 
 pub struct Catalog {
     inner: RwLock<Inner>,
-    stats: Arc<HashMap<String, HostStats>>,
+    stats: Arc<std::sync::RwLock<HashMap<String, Arc<HostStats>>>>,
     pub health: Arc<Health>,
 }
 
@@ -25,7 +25,7 @@ struct Inner {
 }
 
 impl Catalog {
-    pub fn new(stats: Arc<HashMap<String, HostStats>>) -> Self {
+    pub fn new(stats: Arc<std::sync::RwLock<HashMap<String, Arc<HostStats>>>>) -> Self {
         Self {
             inner: RwLock::new(Inner {
                 by_name: HashMap::new(),
@@ -59,7 +59,7 @@ impl Catalog {
             if let Some(key) = &up.api_key {
                 req = req.bearer_auth(key);
             }
-            let host_stats = self.stats.get(id);
+            let host_stats = self.stats.read().ok().and_then(|m| m.get(id).cloned());
             let start = Instant::now();
             let resp = match req.send().await {
                 Ok(r) => {

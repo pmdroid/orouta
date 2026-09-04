@@ -21,7 +21,7 @@ use axum::routing::get;
 use axum::Router;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 pub const MAX_BODY: usize = 32 * 1024 * 1024;
 
@@ -30,16 +30,31 @@ pub struct AppState {
     pub config: Arc<ArcSwap<Config>>,
     pub client: reqwest::Client,
     pub catalog: Arc<Catalog>,
-    pub stats: Arc<HashMap<String, HostStats>>,
+    pub stats: Arc<RwLock<HashMap<String, Arc<HostStats>>>>,
+}
+
+impl AppState {
+    pub fn stats_for(&self, id: &str) -> Arc<HostStats> {
+        if let Ok(map) = self.stats.read() {
+            if let Some(s) = map.get(id) {
+                return s.clone();
+            }
+        }
+        let s = Arc::new(HostStats::default());
+        if let Ok(mut map) = self.stats.write() {
+            map.entry(id.to_string()).or_insert_with(|| s.clone());
+        }
+        s
+    }
 }
 
 pub fn app(config: Arc<Config>, client: reqwest::Client, config_path: Option<PathBuf>) -> Router {
-    let stats: HashMap<String, HostStats> = config
+    let stats: HashMap<String, Arc<HostStats>> = config
         .upstream_order
         .iter()
-        .map(|id| (id.clone(), HostStats::default()))
+        .map(|id| (id.clone(), Arc::new(HostStats::default())))
         .collect();
-    let stats = Arc::new(stats);
+    let stats = Arc::new(RwLock::new(stats));
     let state = AppState {
         config: Arc::new(ArcSwap::from(config)),
         client,

@@ -82,7 +82,12 @@ pub async fn host_down_response(state: &AppState, upstream: &Upstream) -> Option
 
 pub async fn unknown_model_response(state: &AppState) -> Response {
     let config = state.config.load();
-    if let Some(id) = state.catalog.health.first_down(&config.upstream_order).await {
+    if let Some(id) = state
+        .catalog
+        .health
+        .first_down(&config.upstream_order)
+        .await
+    {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(json!({"error": "host unavailable", "host": id})),
@@ -167,7 +172,7 @@ pub async fn forward(
     if let Some(key) = &upstream.api_key {
         builder = builder.header(reqwest::header::AUTHORIZATION, format!("Bearer {key}"));
     }
-    let stats = &state.stats[&upstream.id];
+    let stats = state.stats_for(&upstream.id);
     stats.request_started();
     let start = std::time::Instant::now();
     match builder.send().await {

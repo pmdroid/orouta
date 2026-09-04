@@ -113,7 +113,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
         let Some(up) = config.upstreams.get(id) else {
             continue;
         };
-        let stats = &state.stats[id];
+        let stats = state.stats_for(id);
         let models = host_models(&by_host, id);
         let reqs = stats.requests_total();
         let errs = stats.errors_total();
@@ -203,7 +203,7 @@ pub async fn json(State(state): State<AppState>) -> Response {
         .iter()
         .filter_map(|id| {
             let up = config.upstreams.get(id)?;
-            let stats = &state.stats[id];
+            let stats = state.stats_for(id);
             Some(json!({
                 "id": id,
                 "base_url": up.base_url,
