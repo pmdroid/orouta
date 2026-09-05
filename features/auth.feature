@@ -25,10 +25,11 @@ Feature: client auth
     When GET /api/tags with no auth header
     Then the response status is 200
 
-  Scenario: browser navigation without auth redirects to login
+  Scenario: browser navigation without auth gets the shell but data 401s
     Given auth.keys contains sk-orouta-alice
     When GET /status as a browser with no auth
-    Then the response redirects to /login
+    Then the response status is 200 and the body is the SPA shell
+    And GET /status.json with no auth returns 401
 
   Scenario: login with valid key sets HttpOnly session cookie
     Given auth.keys contains sk-orouta-alice
@@ -48,9 +49,12 @@ Feature: client auth
   Scenario: revoked key kills its session
     Given a browser session logged in as sk-orouta-alice
     When sk-orouta-alice is revoked
-    Then GET /status with the session cookie redirects to /login
+    Then GET /status with the session cookie still returns the shell
+    And GET /status.json with the session cookie returns 401
 
   Scenario: login is refused on an open proxy
     Given auth.keys is empty
     When GET /login
-    Then the response redirects to /status
+    Then the response status is 200 and the body is the SPA shell
+    And GET /api/keys returns an empty keys list
+    And POST /api/login returns 401

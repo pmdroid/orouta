@@ -113,7 +113,7 @@ async fn session_cookie_authorizes_browser_navigation() {
         .await
         .unwrap();
     assert_eq!(res.status(), 200);
-    assert!(res.text().await.unwrap().contains("/ status"));
+    assert!(res.text().await.unwrap().contains(r#"id="root""#));
     let res = client()
         .get(format!("{base}/keys"))
         .header("Cookie", pair)
@@ -121,6 +121,16 @@ async fn session_cookie_authorizes_browser_navigation() {
         .await
         .unwrap();
     assert_eq!(res.status(), 200);
+    let v: Value = client()
+        .get(format!("{base}/status.json"))
+        .header("Cookie", pair)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(v["hosts"].is_array());
 }
 
 #[tokio::test]
@@ -143,20 +153,20 @@ async fn session_cookie_stamps_last_used() {
         .send()
         .await
         .unwrap();
-    let page = client()
-        .get(format!("{base}/keys"))
+    let v: Value = client()
+        .get(format!("{base}/api/keys"))
         .header("Cookie", &pair)
         .send()
         .await
         .unwrap()
-        .text()
+        .json()
         .await
         .unwrap();
-    assert!(page.contains("just now"));
+    assert_eq!(v["keys"][0]["last_used"], "just now");
 }
 
 #[tokio::test]
-async fn browser_navigation_without_auth_redirects_to_login() {
+async fn unauthenticated_browser_gets_shell_but_data_401s() {
     let (base, _dir) = start(&[KEY]).await;
     let res = client()
         .get(format!("{base}/status"))
@@ -164,8 +174,17 @@ async fn browser_navigation_without_auth_redirects_to_login() {
         .send()
         .await
         .unwrap();
-    assert_eq!(res.status(), 303);
-    assert_eq!(res.headers().get("location").unwrap(), "/login");
+    assert_eq!(res.status(), 200);
+    assert!(res.text().await.unwrap().contains(r#"id="root""#));
+    let res = client()
+        .get(format!("{base}/status.json"))
+        .header("Accept", "text/html,application/xhtml+xml")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 401);
+    let v: Value = res.json().await.unwrap();
+    assert_eq!(v["error"], "unauthorized");
 }
 
 #[tokio::test]
@@ -182,21 +201,28 @@ async fn api_clients_still_get_401_json() {
 }
 
 #[tokio::test]
-async fn login_page_serves_form_when_keys_exist() {
+async fn login_route_serves_shell_with_keys() {
     let (base, _dir) = start(&[KEY]).await;
     let res = client().get(format!("{base}/login")).send().await.unwrap();
     assert_eq!(res.status(), 200);
     let page = res.text().await.unwrap();
-    assert!(page.contains("/ login"));
-    assert!(page.contains("type=\"password\""));
+    assert!(page.contains(r#"id="root""#));
 }
 
 #[tokio::test]
-async fn login_page_redirects_when_open() {
+async fn open_proxy_serves_shell_and_empty_keys_list() {
     let (base, _dir) = start(&[]).await;
     let res = client().get(format!("{base}/login")).send().await.unwrap();
-    assert_eq!(res.status(), 303);
-    assert_eq!(res.headers().get("location").unwrap(), "/status");
+    assert_eq!(res.status(), 200);
+    let v: Value = client()
+        .get(format!("{base}/api/keys"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(v["keys"].as_array().unwrap().len(), 0);
 }
 
 #[tokio::test]
@@ -234,7 +260,14 @@ async fn revoking_session_key_kills_the_session() {
         .send()
         .await
         .unwrap();
-    assert_eq!(res.status(), 303);
+    assert_eq!(res.status(), 200);
+    let res = client()
+        .get(format!("{base}/status.json"))
+        .header("Cookie", &pair)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 401);
 }
 
 #[tokio::test]

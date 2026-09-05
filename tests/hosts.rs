@@ -255,15 +255,15 @@ async fn add_host_with_api_key_not_echoed() {
         .unwrap();
     assert_eq!(desk_host["api_key_set"], true);
 
-    let page = aget(format!("{base}/status"))
+    let body = aget(format!("{base}/status.json"))
         .send()
         .await
         .unwrap()
         .text()
         .await
         .unwrap();
-    assert!(!page.contains("sk-secret-123"));
-    assert!(page.contains("api_key: set"));
+    assert!(!body.contains("sk-secret-123"));
+    assert!(body.contains("api_key_set"));
 }
 
 #[tokio::test]
@@ -284,16 +284,6 @@ async fn disable_excludes_host_enable_restores() {
     let desk_host = hosts.iter().find(|h| h["id"] == "desk").unwrap();
     assert_eq!(desk_host["disabled"], true);
     assert!(!tag_names(&base).await.iter().any(|n| n == "mistral"));
-
-    let page = aget(format!("{base}/status"))
-        .send()
-        .await
-        .unwrap()
-        .text()
-        .await
-        .unwrap();
-    assert!(page.contains("DISABLED"));
-    assert!(page.contains("not probed"));
 
     let overlay: Value =
         serde_json::from_str(&std::fs::read_to_string(overlay_path(&dir)).unwrap()).unwrap();

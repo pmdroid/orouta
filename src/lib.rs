@@ -2,6 +2,7 @@ mod anthropic;
 mod auth;
 mod catalog;
 mod config;
+mod embed;
 mod health;
 mod hosts;
 mod keys;
@@ -101,13 +102,14 @@ pub fn app_with_tailscale(
         reload::spawn(path, state.clone());
     }
     Router::new()
-        .route("/status", get(status::page))
+        .route("/status", get(embed::index))
+        .route("/keys", get(embed::index))
+        .route("/login", get(embed::index))
+        .route("/assets/{*path}", get(embed::asset))
         .route("/status.json", get(status::json))
         .route("/logo.png", get(status::logo))
-        .route("/keys", get(keys::page))
-        .route("/login", get(login::page))
+        .route("/api/keys", get(keys::list).post(keys::create))
         .route("/api/login", post(login::api))
-        .route("/api/keys", post(keys::create))
         .route("/api/keys/{id}", delete(keys::revoke))
         .route("/api/hosts", post(hosts::add))
         .route("/api/hosts/{id}/disable", post(hosts::disable))

@@ -11,6 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: build ui
+        working-directory: ui
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+      - name: committed ui/dist is in sync
+        run: git diff --exit-code ui/dist && test -z "$(git status --porcelain ui/dist)"
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -49,6 +57,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: build ui
+        working-directory: ui
+        run: |
+          bun install --frozen-lockfile
+          bun run build
       - uses: dtolnay/rust-toolchain@stable
       - name: build
         run: |

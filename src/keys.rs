@@ -1,13 +1,11 @@
 use crate::overlay::{self, Overlay, OverlayKey};
-use crate::status::{esc, STYLE};
 use crate::AppState;
 use axum::extract::{Path, State};
-use axum::http::{header, StatusCode};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::fmt::Write as _;
 use std::sync::Arc;
 
 pub fn stamp(state: &AppState, key: &str) {
@@ -31,101 +29,11 @@ pub struct AddKey {
     label: Option<String>,
 }
 
-pub async fn page(State(state): State<AppState>) -> Response {
-    state.tailscale.spawn_refresh_if_stale(&state.client);
-    let (banner, rows_html) = match rows(&state) {
-        Ok(rows) => (String::new(), render_rows(&rows)),
-        Err(e) => (
-            format!(r#"<div class="error">overlay error: {}</div>"#, esc(&e)),
-            String::new(),
-        ),
-    };
-    let create_panel = if state.config.load().keys.is_empty() {
-        r#"<p class="url" style="margin:14px 0 0">Key management is locked &mdash; configure <span style="color:var(--text)">[auth].keys</span> in orouta.toml first. A proxy without keys is open and can't be administered remotely.</p>"#.to_string()
-    } else {
-        r#"<div class="row" style="margin-top:14px">
-<label>label<input type="text" id="new-label"></label>
-<button class="btn" onclick="createKey(event)">Create key</button>
-</div>"#
-            .to_string()
-    };
-    let html = format!(
-        r#"<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>orouta — api keys</title>
-<style>{STYLE}</style>
-</head>
-<body>
-<div class="wrap">
-<header><img class="logo" src="/logo.png" alt="orouta"><h1><span>/ api keys</span></h1><nav><a href="/status">hosts</a> &middot; <a href="/keys" class="active">api keys</a></nav></header>
-<p class="sub">keys authorize everything the proxy can do &middot; revoked keys stop working on the next request</p>
-{banner}
-<div class="add" style="margin-top:0">
-<h2>API keys</h2>
-<div id="reveal" class="reveal"></div>
-<table>
-<thead><tr><th>Label</th><th>Key</th><th>Created</th><th>Last used</th><th></th></tr></thead>
-<tbody id="key-rows">
-{rows_html}
-</tbody>
-</table>
-{create_panel}
-</div>
-<script>
-function renderKeys(keys) {{
-  var tb = document.getElementById('key-rows');
-  tb.innerHTML = '';
-  keys.forEach(function(k) {{
-    var tr = document.createElement('tr');
-    tr.innerHTML = '<td><span class="klabel"></span></td><td><span class="kprefix"></span></td><td><span class="ktime"></span></td><td><span class="ktime"></span></td><td><button class="revoke">revoke</button></td>';
-    tr.children[0].firstChild.textContent = k.label;
-    tr.children[1].firstChild.textContent = k.prefix + '\u2026';
-    tr.children[2].firstChild.textContent = k.created;
-    tr.children[3].firstChild.textContent = k.last_used;
-    var btn = tr.querySelector('button');
-    if (k.last) {{ btn.setAttribute('data-last', '1'); }}
-    btn.onclick = function() {{ revokeKey(k.id, btn); }};
-    tb.appendChild(tr);
-  }});
-}}
-function createKey(e) {{
-  e.preventDefault();
-  var label = document.getElementById('new-label').value;
-  fetch('/api/keys', {{method: 'POST', headers: {{'content-type': 'application/json'}}, body: JSON.stringify(label ? {{label: label}} : {{}})}})
-    .then(function(r) {{
-      if (!r.ok) {{ r.text().then(function(t) {{ alert('create failed: ' + r.status + ' ' + t); }}); return; }}
-      r.json().then(function(v) {{
-        var el = document.getElementById('reveal');
-        el.innerHTML = '<button class="btn" onclick="copySecret(this)">copy</button><b>New key created &mdash; copy it now, it won&#8217;t be shown again</b><code></code>';
-        el.querySelector('code').textContent = v.secret;
-        renderKeys(v.keys);
-        document.getElementById('new-label').value = '';
-      }});
-    }});
-}}
-function copySecret(btn) {{
-  var code = btn.parentElement.querySelector('code').textContent;
-  navigator.clipboard.writeText(code);
-  btn.textContent = 'copied';
-}}
-function revokeKey(id, btn) {{
-  if (btn.hasAttribute('data-last') && !confirm('This is the last API key. Revoking it leaves the proxy without keys until you add one to orouta.toml. Revoke anyway?')) {{ return; }}
-  fetch('/api/keys/' + encodeURIComponent(id), {{method: 'DELETE'}})
-    .then(function(r) {{
-      if (r.ok) {{ r.json().then(function(v) {{ renderKeys(v.keys); }}); }}
-      else {{ r.text().then(function(t) {{ alert('revoke failed: ' + r.status + ' ' + t); }}); }}
-    }});
-}}
-</script>
-</div>
-</body>
-</html>
-"#,
-    );
-    ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response()
+pub async fn list(State(state): State<AppState>) -> Response {
+    match rows(&state) {
+        Ok(r) => Json(json!({ "keys": views(&r) })).into_response(),
+        Err(e) => server_error(e),
+    }
 }
 
 pub async fn create(State(state): State<AppState>, body: Option<Json<AddKey>>) -> Response {
@@ -331,25 +239,6 @@ fn views(rows: &[KeyRow]) -> Vec<Value> {
             })
         })
         .collect()
-}
-
-fn render_rows(rows: &[KeyRow]) -> String {
-    let last = rows.len() == 1;
-    let mut out = String::new();
-    for r in rows {
-        let data_last = if last { r#" data-last="1""# } else { "" };
-        let _ = write!(
-            out,
-            r#"<tr><td><span class="klabel">{}</span></td><td><span class="kprefix">{}&hellip;</span></td><td><span class="ktime">{}</span></td><td><span class="ktime">{}</span></td><td><button class="revoke" data-id="{}"{data_last} onclick="revokeKey('{}', this)">revoke</button></td></tr>"#,
-            esc(&r.label),
-            esc(&r.prefix),
-            esc(&r.created),
-            esc(&r.last_used),
-            esc(&r.id),
-            esc(&r.id),
-        );
-    }
-    out
 }
 
 async fn persist(
