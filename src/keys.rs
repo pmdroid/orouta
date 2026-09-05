@@ -60,12 +60,12 @@ pub async fn page(State(state): State<AppState>) -> Response {
 </head>
 <body>
 <div class="wrap">
-<header><h1>orouta <span>/ api keys</span></h1><nav><a href="/status">hosts</a> &middot; <a href="/keys" class="active">api keys</a></nav></header>
+<header><img class="logo" src="/logo.png" alt="orouta"><h1><span>/ api keys</span></h1><nav><a href="/status">hosts</a> &middot; <a href="/keys" class="active">api keys</a></nav></header>
 <p class="sub">keys authorize everything the proxy can do &middot; revoked keys stop working on the next request</p>
 {banner}
 <div class="add" style="margin-top:0">
 <h2>API keys</h2>
-<div id="reveal"></div>
+<div id="reveal" class="reveal"></div>
 <table>
 <thead><tr><th>Label</th><th>Key</th><th>Created</th><th>Last used</th><th></th></tr></thead>
 <tbody id="key-rows">
@@ -82,7 +82,7 @@ function renderKeys(keys) {{
     var tr = document.createElement('tr');
     tr.innerHTML = '<td><span class="klabel"></span></td><td><span class="kprefix"></span></td><td><span class="ktime"></span></td><td><span class="ktime"></span></td><td><button class="revoke">revoke</button></td>';
     tr.children[0].firstChild.textContent = k.label;
-    tr.children[1].firstChild.textContent = k.prefix + '\\u2026';
+    tr.children[1].firstChild.textContent = k.prefix + '\u2026';
     tr.children[2].firstChild.textContent = k.created;
     tr.children[3].firstChild.textContent = k.last_used;
     var btn = tr.querySelector('button');
@@ -99,7 +99,7 @@ function createKey(e) {{
       if (!r.ok) {{ r.text().then(function(t) {{ alert('create failed: ' + r.status + ' ' + t); }}); return; }}
       r.json().then(function(v) {{
         var el = document.getElementById('reveal');
-        el.innerHTML = '<button class="btn" onclick="copySecret(this)">copy</button><b>New key created &mdash; copy it now, it won\\'t be shown again</b><code></code>';
+        el.innerHTML = '<button class="btn" onclick="copySecret(this)">copy</button><b>New key created &mdash; copy it now, it won&#8217;t be shown again</b><code></code>';
         el.querySelector('code').textContent = v.secret;
         renderKeys(v.keys);
         document.getElementById('new-label').value = '';

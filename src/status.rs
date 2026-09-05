@@ -114,6 +114,14 @@ pub(crate) fn esc(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+pub async fn logo() -> Response {
+    (
+        [(header::CONTENT_TYPE, "image/png")],
+        include_bytes!("../website/public/icon-192.png").as_slice(),
+    )
+        .into_response()
+}
+
 pub async fn page(State(state): State<AppState>) -> Response {
     let config = state.config.load();
     state.tailscale.spawn_refresh_if_stale(&state.client);
@@ -226,7 +234,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
 </head>
 <body>
 <div class="wrap">
-<header><h1>orouta <span>/ status</span></h1><nav><a href="/status" class="active">hosts</a> &middot; <a href="/keys">api keys</a></nav></header>
+<header><img class="logo" src="/logo.png" alt="orouta"><h1><span>/ status</span></h1><nav><a href="/status" class="active">hosts</a> &middot; <a href="/keys">api keys</a></nav></header>
 <p class="sub">{n_hosts} hosts &middot; reloaded every 15s &middot; <a href="/status.json">JSON</a>{ts_line}</p>
 <div class="summary">
 <div class="stat"><b>{hosts_up}/{n_hosts}</b><small>hosts up</small></div>
@@ -356,6 +364,7 @@ pub(crate) const STYLE: &str = r#"
   }
   .wrap { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
   header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+  .logo { height: 36px; width: auto; align-self: center; }
   h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: 0.02em; }
   h1 span { color: var(--accent); }
   .sub { color: var(--muted); margin: 0 0 24px; }
@@ -383,7 +392,7 @@ pub(crate) const STYLE: &str = r#"
   .down { color: var(--bad); }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--ok); }
   .dot.down { background: var(--bad); }
-  .err { color: var(--bad); font-size: 12px; }
+  .err { color: var(--bad); font-size: 12px; overflow-wrap: anywhere; }
   .model { display: inline-block; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; margin: 2px 4px 2px 0; font-size: 12px; color: var(--text); }
   .ts { display: inline-block; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; margin-left: 12px; font-size: 12px; }
   .ts b { color: var(--accent); letter-spacing: 0.06em; }
