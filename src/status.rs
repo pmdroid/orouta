@@ -117,7 +117,7 @@ pub(crate) fn esc(s: &str) -> String {
 pub async fn logo() -> Response {
     (
         [(header::CONTENT_TYPE, "image/png")],
-        include_bytes!("../website/public/icon-192.png").as_slice(),
+        include_bytes!("../docs/favicons/icon-192.png").as_slice(),
     )
         .into_response()
 }
