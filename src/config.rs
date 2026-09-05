@@ -7,6 +7,7 @@ pub struct Config {
     pub host: String,
     pub port: u16,
     pub keys: Vec<String>,
+    pub raw_keys: Vec<String>,
     pub upstreams: HashMap<String, Upstream>,
     pub upstream_order: Vec<String>,
     pub pull_host: Option<String>,
@@ -129,7 +130,8 @@ impl Config {
         Ok(Config {
             host: file.host,
             port: file.port,
-            keys: file.auth.keys,
+            keys: file.auth.keys.clone(),
+            raw_keys: file.auth.keys,
             upstreams,
             upstream_order,
             pull_host: file.pull_host,
