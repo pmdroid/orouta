@@ -101,12 +101,12 @@ fn rate(count: u64, duration_ns: u64) -> f64 {
 }
 
 pub fn capture(tail: &[u8], content_type: Option<&str>) -> Option<EvalFields> {
-    let tail = std::str::from_utf8(tail).ok()?;
+    let tail = String::from_utf8_lossy(tail);
     let ct = content_type.unwrap_or("");
     let value = if ct.contains("ndjson") || ct.contains("jsonl") {
-        last_ndjson_object(tail)
+        last_ndjson_object(&tail)
     } else if ct.contains("json") {
-        last_json_object(tail)
+        last_json_object(&tail)
     } else {
         return None;
     };
@@ -244,6 +244,23 @@ mod tests {
         let tail = &body.as_bytes()[body.len() - TAIL..];
         let f = capture(tail, Some("application/json")).unwrap();
         assert_eq!(f.eval_count, 88);
+    }
+
+    #[test]
+    fn utf8_split_cut_still_finds_eval_fields() {
+        let filler = "日".repeat(TAIL / 3 + 2);
+        let body = format!(
+            "{{\"note\":\"{filler}\",\"done\":false}}\n{{\"done\":true,\"eval_count\":136,\"eval_duration\":3459000000}}\n"
+        );
+        let mut cut = body.len() - TAIL;
+        while body.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        assert!(!body.is_char_boundary(cut));
+        let tail = &body.as_bytes()[cut..];
+        let f = capture(tail, Some("application/x-ndjson")).unwrap();
+        assert_eq!(f.eval_count, 136);
+        assert_eq!(f.eval_duration_ns, 3459000000);
     }
 
     #[test]
