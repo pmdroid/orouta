@@ -204,7 +204,7 @@ async fn login_refused_when_open() {
 
 #[tokio::test]
 async fn revoking_session_key_kills_the_session() {
-    let (base, dir) = start(&[KEY, "sk-orouta-bob"]).await;
+    let (base, _dir) = start(&[KEY, "sk-orouta-bob"]).await;
     let res = login(&base, KEY).await;
     let pair = res
         .headers()
