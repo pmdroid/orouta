@@ -310,7 +310,7 @@ async fn unknown_inference_model_is_404() {
 }
 
 #[tokio::test]
-async fn pull_unknown_name_is_404() {
+async fn pull_unknown_name_forwards_to_selected_host() {
     let home = MockServer::start().await;
     let desk = MockServer::start().await;
     Mock::given(method("POST"))
@@ -325,15 +325,13 @@ async fn pull_unknown_name_is_404() {
         .await;
     let base = start_with(&home, &desk, r#""sk-orouta-alice""#, "", &["llama3"], &[]).await;
     let res = client()
-        .post(format!("{base}/api/pull"))
+        .post(format!("{base}/api/pull?host=home"))
         .header("Authorization", format!("Bearer {KEY}"))
         .json(&json!({"name":"does-not-exist"}))
         .send()
         .await
         .unwrap();
-    assert_eq!(res.status(), 404);
-    let v: Value = res.json().await.unwrap();
-    assert_eq!(v["error"], "unknown model");
+    assert_eq!(res.status(), 200);
     let home_pull = home
         .received_requests()
         .await
@@ -346,7 +344,7 @@ async fn pull_unknown_name_is_404() {
         .unwrap()
         .iter()
         .any(|r| r.url.path() == "/api/pull");
-    assert!(!home_pull);
+    assert!(home_pull);
     assert!(!desk_pull);
 }
 

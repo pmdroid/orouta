@@ -49,6 +49,9 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
     if path == "/api/copy" {
         return forward_copy(&state, method, &pq, &headers, body).await;
     }
+    if method == Method::POST && path == "/api/pull" {
+        return pull(&state, &uri, &headers, body).await;
+    }
     let name = model::extract_name(&body);
     if let Some(name) = name {
         if let Some(upstream) = state.catalog.lookup(&config, &state.client, &name).await {
@@ -146,6 +149,43 @@ async fn forward_copy(
         }
     };
     forward(state, method, pq, headers, body, &upstream).await
+}
+
+async fn pull(
+    state: &AppState,
+    uri: &axum::http::Uri,
+    headers: &HeaderMap,
+    body: Bytes,
+) -> Response {
+    let host = query_param(uri.query(), "host");
+    let config = state.config.load();
+    let upstream = match config.resolve_pull_host(host) {
+        Ok(u) => u,
+        Err(e) => {
+            return (StatusCode::BAD_REQUEST, Json(json!({"error": e}))).into_response();
+        }
+    };
+    let path = uri.path();
+    let pq = match uri.query() {
+        Some(q) => {
+            let kept: Vec<&str> = q.split('&').filter(|kv| !kv.starts_with("host=")).collect();
+            if kept.is_empty() {
+                path.to_string()
+            } else {
+                format!("{}?{}", path, kept.join("&"))
+            }
+        }
+        None => path.to_string(),
+    };
+    forward(state, Method::POST, &pq, headers, body, &upstream).await
+}
+
+fn query_param<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
+    let q = query?;
+    q.split('&').find_map(|kv| {
+        let (k, v) = kv.split_once('=')?;
+        (k == key).then_some(v)
+    })
 }
 
 pub async fn forward(
