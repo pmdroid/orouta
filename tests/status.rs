@@ -68,38 +68,80 @@ fn client() -> reqwest::Client {
 }
 
 #[tokio::test]
-async fn html_lists_hosts_models_and_base_urls() {
+async fn spa_shell_serves_without_auth() {
     let home = MockServer::start().await;
     let desk = MockServer::start().await;
-    let base = start_with(
-        &home,
-        &desk,
-        r#""sk-orouta-alice""#,
-        &["llama3:latest"],
-        &["mistral"],
-    )
-    .await;
+    let base = start_with(&home, &desk, r#""sk-orouta-alice""#, &[], &[]).await;
+    for route in ["/status", "/keys", "/login"] {
+        let res = client().get(format!("{base}{route}")).send().await.unwrap();
+        assert_eq!(res.status(), 200);
+        let ct = res
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(ct.contains("text/html"));
+        let body = res.text().await.unwrap();
+        assert!(body.contains(r#"id="root""#));
+        assert!(body.contains("/assets/"));
+    }
+}
+
+#[tokio::test]
+async fn data_apis_require_key() {
+    let home = MockServer::start().await;
+    let desk = MockServer::start().await;
+    let base = start_with(&home, &desk, r#""sk-orouta-alice""#, &[], &[]).await;
     let res = client()
-        .get(format!("{base}/status"))
-        .header("Authorization", format!("Bearer {KEY}"))
+        .get(format!("{base}/status.json"))
         .send()
         .await
         .unwrap();
+    assert_eq!(res.status(), 401);
+    let v: Value = res.json().await.unwrap();
+    assert_eq!(v["error"], "unauthorized");
+    let res = client()
+        .get(format!("{base}/api/keys"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 401);
+    let v: Value = res.json().await.unwrap();
+    assert_eq!(v["error"], "unauthorized");
+}
+
+#[tokio::test]
+async fn asset_serves_with_immutable_cache() {
+    let home = MockServer::start().await;
+    let desk = MockServer::start().await;
+    let base = start_with(&home, &desk, r#""sk-orouta-alice""#, &[], &[]).await;
+    let html = client()
+        .get(format!("{base}/status"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    let marker = "src=\"";
+    let start = html.find(marker).unwrap() + marker.len();
+    let end = html[start..].find('"').unwrap() + start;
+    let asset = &html[start..end];
+    assert!(asset.starts_with("/assets/"));
+    let res = client().get(format!("{base}{asset}")).send().await.unwrap();
     assert_eq!(res.status(), 200);
-    let ct = res
+    let cache = res
         .headers()
-        .get("content-type")
+        .get("cache-control")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    assert!(ct.contains("text/html"));
-    let body = res.text().await.unwrap();
-    assert!(body.contains("http-equiv=\"refresh\""));
-    assert!(body.contains("home"));
-    assert!(body.contains(&home.uri()));
-    assert!(body.contains("llama3:latest"));
-    assert!(body.contains("desk"));
-    assert!(body.contains(&desk.uri()));
-    assert!(body.contains("mistral"));
+    assert!(cache.contains("immutable"));
+    let res = client()
+        .get(format!("{base}/assets/nope.js"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 404);
 }
 
 #[tokio::test]
@@ -170,14 +212,18 @@ async fn probe_failure_marks_host_down() {
 }
 
 #[tokio::test]
-async fn status_requires_key() {
+async fn shell_serves_but_json_requires_key() {
     let home = MockServer::start().await;
     let desk = MockServer::start().await;
     let base = start_with(&home, &desk, r#""sk-orouta-alice""#, &[], &[]).await;
-    for route in ["/status", "/status.json"] {
-        let res = client().get(format!("{base}{route}")).send().await.unwrap();
-        assert_eq!(res.status(), 401);
-    }
+    let res = client().get(format!("{base}/status")).send().await.unwrap();
+    assert_eq!(res.status(), 200);
+    let res = client()
+        .get(format!("{base}/status.json"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 401);
 }
 
 #[tokio::test]
@@ -346,7 +392,7 @@ async fn start_ts(info: Option<orouta::TsInfo>) -> String {
 }
 
 #[tokio::test]
-async fn tailscale_serving_shows_chip_with_link() {
+async fn tailscale_serving_reports_info_in_json() {
     let base = start_ts(Some(orouta::TsInfo {
         self_dns: "box.tail-scale.ts.net".to_string(),
         tailnet: Some("example.com".to_string()),
@@ -355,17 +401,6 @@ async fn tailscale_serving_shows_chip_with_link() {
         url: Some("https://box.tail-scale.ts.net".to_string()),
     }))
     .await;
-    let html = client()
-        .get(format!("{base}/status"))
-        .header("Authorization", format!("Bearer {KEY}"))
-        .send()
-        .await
-        .unwrap()
-        .text()
-        .await
-        .unwrap();
-    assert!(html.contains(r#"<span class="ts"><b>TAILSCALE</b>"#));
-    assert!(html.contains(r#"<a href="https://box.tail-scale.ts.net">"#));
     let v: Value = client()
         .get(format!("{base}/status.json"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -383,7 +418,7 @@ async fn tailscale_serving_shows_chip_with_link() {
 }
 
 #[tokio::test]
-async fn tailscale_offline_shows_dimmed_chip() {
+async fn tailscale_offline_reports_in_json() {
     let base = start_ts(Some(orouta::TsInfo {
         self_dns: "box.tail-scale.ts.net".to_string(),
         tailnet: Some("example.com".to_string()),
@@ -392,16 +427,6 @@ async fn tailscale_offline_shows_dimmed_chip() {
         url: None,
     }))
     .await;
-    let html = client()
-        .get(format!("{base}/status"))
-        .header("Authorization", format!("Bearer {KEY}"))
-        .send()
-        .await
-        .unwrap()
-        .text()
-        .await
-        .unwrap();
-    assert!(html.contains(r#"<span class="ts dim">TAILSCALE &middot; offline</span>"#));
     let v: Value = client()
         .get(format!("{base}/status.json"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -417,7 +442,7 @@ async fn tailscale_offline_shows_dimmed_chip() {
 }
 
 #[tokio::test]
-async fn tailscale_no_serve_shows_dimmed_chip() {
+async fn tailscale_no_serve_reports_in_json() {
     let base = start_ts(Some(orouta::TsInfo {
         self_dns: "box.tail-scale.ts.net".to_string(),
         tailnet: Some("example.com".to_string()),
@@ -426,16 +451,6 @@ async fn tailscale_no_serve_shows_dimmed_chip() {
         url: None,
     }))
     .await;
-    let html = client()
-        .get(format!("{base}/status"))
-        .header("Authorization", format!("Bearer {KEY}"))
-        .send()
-        .await
-        .unwrap()
-        .text()
-        .await
-        .unwrap();
-    assert!(html.contains(r#"<span class="ts dim">TAILSCALE &middot; no serve</span>"#));
     let v: Value = client()
         .get(format!("{base}/status.json"))
         .header("Authorization", format!("Bearer {KEY}"))
@@ -451,18 +466,8 @@ async fn tailscale_no_serve_shows_dimmed_chip() {
 }
 
 #[tokio::test]
-async fn no_tailscale_renders_nothing_and_json_null() {
+async fn no_tailscale_reports_json_null() {
     let base = start_ts(None).await;
-    let html = client()
-        .get(format!("{base}/status"))
-        .header("Authorization", format!("Bearer {KEY}"))
-        .send()
-        .await
-        .unwrap()
-        .text()
-        .await
-        .unwrap();
-    assert!(!html.contains("TAILSCALE"));
     let v: Value = client()
         .get(format!("{base}/status.json"))
         .header("Authorization", format!("Bearer {KEY}"))

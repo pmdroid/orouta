@@ -17,7 +17,7 @@ Feature: manage upstream hosts from the status UI
   Scenario: api_key is never echoed back
     When POST /api/hosts with id desk and an api_key
     Then the response and /status.json contain api_key_set true but never the key value
-    And the status page shows "api_key: set"
+    And the dashboard shows the desk host with api_key set
 
   Scenario: disable excludes host from catalog and probing
     Given home and desk are up
@@ -25,7 +25,7 @@ Feature: manage upstream hosts from the status UI
     Then the response status is 200
     And /status.json marks desk disabled true
     And desk models disappear from /api/tags
-    And the status page renders the desk row with DISABLED / not probed
+    And the dashboard marks desk disabled and not probed
     And the overlay file records desk as disabled
 
   Scenario: enable restores the host

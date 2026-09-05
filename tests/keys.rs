@@ -91,14 +91,6 @@ async fn start(keys: &[&str]) -> (String, TempDir) {
     (base, dir)
 }
 
-async fn text_at(url: String, key: Option<&str>) -> String {
-    let req = match key {
-        Some(k) => get_with(url, k),
-        None => client().get(url),
-    };
-    req.send().await.unwrap().text().await.unwrap()
-}
-
 async fn status_code(req: reqwest::RequestBuilder) -> u16 {
     req.send().await.unwrap().status().as_u16()
 }
@@ -163,7 +155,7 @@ async fn create_key_returns_secret_once_and_records_overlay() {
 }
 
 #[tokio::test]
-async fn keys_page_lists_keys_without_secrets() {
+async fn keys_api_lists_keys_without_secrets() {
     let (base, _dir) = start(&[KEY]).await;
     let v = create_key(&base, "ci").await;
     let secret = v["secret"].as_str().unwrap().to_string();
@@ -173,12 +165,17 @@ async fn keys_page_lists_keys_without_secrets() {
     );
     let _ = create_key(&base, "unused").await;
     tokio::time::sleep(Duration::from_millis(1100)).await;
-    let page = text_at(format!("{base}/keys"), Some(KEY)).await;
+    let res = get_with(format!("{base}/api/keys"), KEY)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let page = res.text().await.unwrap();
     assert!(page.contains("from orouta.toml"));
     assert!(page.contains("in config file"));
     assert!(page.contains("ci"));
     assert!(page.contains("unused"));
-    assert!(page.contains(&format!("{}&hellip;", &secret[..12])));
+    assert!(page.contains(&secret[..12]));
     assert!(!page.contains(secret.as_str()));
     assert!(page.contains("just now"));
     assert!(page.contains("never"));
@@ -320,29 +317,22 @@ async fn revoking_all_keys_locks_key_creation() {
 }
 
 #[tokio::test]
-async fn corrupt_overlay_shows_error_banner() {
+async fn corrupt_overlay_errors_keys_api() {
     let (base, dir) = start(&[KEY]).await;
     std::fs::write(overlay_path(&dir), "{not json").unwrap();
-    let page = text_at(format!("{base}/keys"), Some(KEY)).await;
-    assert!(page.contains("overlay error"));
-    assert!(!page.contains("from orouta.toml"));
+    let res = get_with(format!("{base}/api/keys"), KEY)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 500);
+    let v: Value = res.json().await.unwrap();
+    assert!(v["error"].as_str().is_some());
     let res = apost(format!("{base}/api/keys"))
         .json(&json!({"label": "x"}))
         .send()
         .await
         .unwrap();
     assert_eq!(res.status(), 500);
-}
-
-#[tokio::test]
-async fn status_page_links_to_keys_page() {
-    let (base, _dir) = start(&[KEY]).await;
-    let page = text_at(format!("{base}/status"), Some(KEY)).await;
-    assert!(page.contains("href=\"/keys\""));
-    assert!(page.contains("api keys"));
-    let keys_page = text_at(format!("{base}/keys"), Some(KEY)).await;
-    assert!(keys_page.contains("href=\"/status\""));
-    assert!(keys_page.contains("hosts"));
 }
 
 #[tokio::test]
