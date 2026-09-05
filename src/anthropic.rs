@@ -37,12 +37,11 @@ pub async fn messages(state: AppState, body: Bytes) -> Response {
         .lookup(&state.config, &state.client, &client_model)
         .await
     else {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": "unknown model"})),
-        )
-            .into_response();
+        return proxy::unknown_model_response(&state).await;
     };
+    if let Some(res) = proxy::host_down_response(&state, &upstream).await {
+        return res;
+    }
     if parsed.get("tools").is_some() || parsed.get("tool_choice").is_some() {
         return (
             StatusCode::BAD_REQUEST,
@@ -179,13 +178,21 @@ async fn complete_chat(
     stats.request_started();
     let start = std::time::Instant::now();
     let resp = match builder.send().await {
-        Ok(r) => r,
+        Ok(r) => {
+            state.catalog.health.record_ok(&upstream.id).await;
+            r
+        }
         Err(e) => {
+            state
+                .catalog
+                .health
+                .record_error(&upstream.id, e.to_string())
+                .await;
             tracing::error!(error = %e, "upstream");
             stats.request_finished(start.elapsed(), Some(e.to_string()));
             return (
                 StatusCode::BAD_GATEWAY,
-                Json(json!({"error": "upstream unavailable"})),
+                Json(json!({"error": "upstream unavailable", "host": &upstream.id})),
             )
                 .into_response();
         }
@@ -258,13 +265,21 @@ async fn stream_chat(
     stats.request_started();
     let start = std::time::Instant::now();
     let resp = match builder.send().await {
-        Ok(r) => r,
+        Ok(r) => {
+            state.catalog.health.record_ok(&upstream.id).await;
+            r
+        }
         Err(e) => {
+            state
+                .catalog
+                .health
+                .record_error(&upstream.id, e.to_string())
+                .await;
             tracing::error!(error = %e, "upstream");
             stats.request_finished(start.elapsed(), Some(e.to_string()));
             return (
                 StatusCode::BAD_GATEWAY,
-                Json(json!({"error": "upstream unavailable"})),
+                Json(json!({"error": "upstream unavailable", "host": &upstream.id})),
             )
                 .into_response();
         }

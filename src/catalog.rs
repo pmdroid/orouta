@@ -1,4 +1,5 @@
 use crate::config::{Config, Upstream};
+use crate::health::Health;
 use crate::status::HostStats;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -12,6 +13,7 @@ const PROBE: Duration = Duration::from_secs(2);
 pub struct Catalog {
     inner: RwLock<Inner>,
     stats: Arc<HashMap<String, HostStats>>,
+    pub health: Arc<Health>,
 }
 
 struct Inner {
@@ -31,6 +33,7 @@ impl Catalog {
                 fetched: None,
             }),
             stats,
+            health: Arc::new(Health::new()),
         }
     }
 
@@ -50,8 +53,12 @@ impl Catalog {
             let host_stats = self.stats.get(id);
             let start = Instant::now();
             let resp = match req.send().await {
-                Ok(r) => r,
+                Ok(r) => {
+                    self.health.record_ok(id).await;
+                    r
+                }
                 Err(e) => {
+                    self.health.record_error(id, e.to_string()).await;
                     if let Some(s) = host_stats {
                         s.probe_finished(start.elapsed(), Some(e.to_string()));
                     }

@@ -2,12 +2,14 @@ mod anthropic;
 mod auth;
 mod catalog;
 mod config;
+mod health;
 mod list;
 mod model;
 mod proxy;
 mod status;
 
 pub use config::Config;
+pub use health::Health;
 pub use status::HostStats;
 
 use crate::catalog::Catalog;
