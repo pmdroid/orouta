@@ -20,12 +20,18 @@ Feature: manage api keys from the UI
     When a request uses the new secret
     Then the response status is 200
 
-  Scenario: keys page lists label, prefix, created and last_used without the secret
+  Scenario: GET /api/keys lists label, prefix, created and last_used without the secret
     Given a key was created and used
-    When GET /keys
+    When GET /api/keys with a valid key
     Then the body lists the TOML key as "from orouta.toml" with created "in config file"
-    And the body shows the created key label and a 12-char prefix but never the full secret
+    And the body lists the created key label and a 12-char prefix but never the full secret
     And the used key shows "just now" as last used
+
+  Scenario: the keys view stays locked on an open proxy
+    Given auth.keys is empty
+    When GET /api/keys
+    Then the body has an empty keys list
+    And the keys view shows a locked message instead of the create form
 
   Scenario: revoke stops the key on the next request
     Given a key was created
@@ -66,15 +72,15 @@ Feature: manage api keys from the UI
 
   Scenario: corrupt overlay shows an error instead of TOML keys
     Given the overlay file contains garbage
-    When GET /keys
-    Then the body shows an overlay error banner
-    And the body does not list the TOML keys as active
+    When GET /api/keys with a valid key
+    Then the response status is 500
+    And the keys view shows the error instead of the TOML keys
     And POST /api/keys returns 500
 
-  Scenario: status page links to the keys page
-    When GET /status with a valid key
-    Then the header nav links to /keys
-    And GET /keys links back to /status
+  Scenario: the keys view links to the status view
+    When GET /keys
+    Then the response is the SPA shell
+    And the nav links to /status and /keys
 
   Scenario: status.json does not include keys
     Given a key was created

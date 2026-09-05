@@ -346,9 +346,11 @@ where
             Poll::Ready(None) => {
                 if let Some(fields) = tps::capture(&this.tail, this.capture.content_type.as_deref())
                 {
-                    this.capture
-                        .store
-                        .record(&this.capture.host_id, &this.capture.model, fields);
+                    this.capture.store.record(
+                        &this.capture.host_id,
+                        crate::status::strip_latest(&this.capture.model),
+                        fields,
+                    );
                 }
                 Poll::Ready(None)
             }
