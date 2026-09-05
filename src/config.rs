@@ -17,6 +17,40 @@ pub struct Upstream {
     pub id: String,
     pub base_url: String,
     pub api_key: Option<String>,
+    pub disabled: bool,
+}
+
+pub fn build_upstream(
+    id: &str,
+    base_url: &str,
+    api_key: Option<String>,
+) -> Result<Upstream, String> {
+    if id.trim().is_empty() {
+        return Err("upstream id is required".into());
+    }
+    let parsed =
+        reqwest::Url::parse(base_url).map_err(|e| format!("upstream {id} base_url: {e}"))?;
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return Err(format!("upstream {id} base_url must be http or https"));
+    }
+    if parsed.host_str().is_none() {
+        return Err(format!("upstream {id} base_url has no host"));
+    }
+    let base_url = base_url.trim_end_matches('/').to_string();
+    let api_key = api_key.and_then(|k| {
+        let t = k.trim();
+        if t.is_empty() {
+            None
+        } else {
+            Some(t.to_string())
+        }
+    });
+    Ok(Upstream {
+        id: id.to_string(),
+        base_url,
+        api_key,
+        disabled: false,
+    })
 }
 
 #[derive(Deserialize)]
@@ -74,32 +108,9 @@ impl Config {
             if upstreams.contains_key(&u.id) {
                 return Err(format!("duplicate upstream id: {}", u.id));
             }
-            let parsed = reqwest::Url::parse(&u.base_url)
-                .map_err(|e| format!("upstream {} base_url: {e}", u.id))?;
-            if parsed.scheme() != "http" && parsed.scheme() != "https" {
-                return Err(format!("upstream {} base_url must be http or https", u.id));
-            }
-            if parsed.host_str().is_none() {
-                return Err(format!("upstream {} base_url has no host", u.id));
-            }
-            let base_url = u.base_url.trim_end_matches('/').to_string();
-            let api_key = u.api_key.and_then(|k| {
-                let t = k.trim();
-                if t.is_empty() {
-                    None
-                } else {
-                    Some(t.to_string())
-                }
-            });
+            let upstream = build_upstream(&u.id, &u.base_url, u.api_key)?;
             upstream_order.push(u.id.clone());
-            upstreams.insert(
-                u.id.clone(),
-                Upstream {
-                    id: u.id,
-                    base_url,
-                    api_key,
-                },
-            );
+            upstreams.insert(u.id.clone(), upstream);
         }
         if upstream_order.is_empty() {
             return Err("at least one [[upstream]] is required".into());
@@ -133,8 +144,10 @@ impl Config {
         }
     }
 
-    pub fn first_upstream(&self) -> &Upstream {
-        &self.upstreams[&self.upstream_order[0]]
+    pub fn first_upstream(&self) -> Option<&Upstream> {
+        self.upstream_order
+            .iter()
+            .find_map(|id| self.upstreams.get(id).filter(|up| !up.disabled))
     }
 
     pub fn resolve_pull_host(&self, host: Option<&str>) -> Result<Upstream, String> {
