@@ -171,7 +171,11 @@ async fn browser_navigation_without_auth_redirects_to_login() {
 #[tokio::test]
 async fn api_clients_still_get_401_json() {
     let (base, _dir) = start(&[KEY]).await;
-    let res = client().get(format!("{base}/api/tags")).send().await.unwrap();
+    let res = client()
+        .get(format!("{base}/api/tags"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), 401);
     let v: Value = res.json().await.unwrap();
     assert_eq!(v["error"], "unauthorized");
