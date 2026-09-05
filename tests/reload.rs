@@ -230,7 +230,21 @@ async fn key_change_takes_effect() {
         &toml_for(&[("home", &home.uri())], "\"sk-orouta-new\""),
     )
     .await;
-    tokio::time::sleep(Duration::from_millis(1600)).await;
+    let mut reloaded = false;
+    for _ in 0..50 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let res = client()
+            .get(format!("{base}/api/tags"))
+            .header("Authorization", "Bearer sk-orouta-new")
+            .send()
+            .await
+            .unwrap();
+        if res.status() == 200 {
+            reloaded = true;
+            break;
+        }
+    }
+    assert!(reloaded, "reload poll never picked up the new key");
 
     let res = client()
         .get(format!("{base}/api/tags"))
@@ -239,13 +253,6 @@ async fn key_change_takes_effect() {
         .await
         .unwrap();
     assert_eq!(res.status(), 401);
-    let res = client()
-        .get(format!("{base}/api/tags"))
-        .header("Authorization", "Bearer sk-orouta-new")
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(res.status(), 200);
 }
 
 async fn mount_tags(server: &MockServer, names: &[&str]) {
