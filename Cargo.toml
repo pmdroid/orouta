@@ -1,6 +1,6 @@
 [package]
 name = "orouta"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Route Ollama-compatible requests to hosts by model name"
 readme = "README.md"
