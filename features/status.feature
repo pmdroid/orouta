@@ -63,3 +63,37 @@ Feature: status page
     When GET /status with a valid key
     Then the body contains no TAILSCALE chip
     And /status.json has tailscale null
+
+  Scenario: streamed chat response records tps sample
+    Given home /api/tags includes llama3:latest
+    And home /api/chat streams a final chunk with eval_count 136 and eval_duration 3459000000
+    When POST /api/chat with model llama3
+    Then /status.json has tps for model llama3 with avg 39.3, last 39.3, prompt 40.0 and samples 1
+
+  Scenario: non-streaming chat response records tps sample
+    Given home /api/tags includes llama3:latest
+    And home /api/chat returns json with eval_count 88 and eval_duration 2281000000
+    When POST /api/chat with model llama3
+    Then /status.json has tps for model llama3 with avg 38.6 and no prompt tps
+
+  Scenario: non-eval response is forwarded unchanged and records no sample
+    Given home /api/chat returns plain text with no eval fields
+    When POST /api/chat with model llama3
+    Then the response body is byte-identical to the upstream body
+    And /status.json has no tps for home
+
+  Scenario: tps window keeps the latest 50 samples per host and model
+    Given home /api/chat streams 60 responses with eval_count 10 and eval_duration 1000000000
+    When POST /api/chat with model llama3 60 times
+    Then /status.json has tps for model llama3 with samples 50
+
+  Scenario: host with loaded models reports vram
+    Given home /api/ps reports gemma4:e2b with size_vram 7801585920
+    When GET /status.json with a valid key
+    Then home has vram loaded_bytes 7801585920 with models gemma4:e2b
+    And desk has vram null
+
+  Scenario: vram stays empty when the host does not answer /api/ps
+    Given home /api/ps is unreachable
+    When GET /status.json with a valid key
+    Then home has vram null

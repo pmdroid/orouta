@@ -13,6 +13,7 @@ mod proxy;
 mod reload;
 mod status;
 mod tailscale;
+mod tps;
 
 pub use config::Config;
 pub use health::Health;
@@ -37,6 +38,7 @@ pub struct AppState {
     pub client: reqwest::Client,
     pub catalog: Arc<Catalog>,
     pub stats: Arc<RwLock<HashMap<String, Arc<HostStats>>>>,
+    pub tps: Arc<tps::TpsStore>,
     pub tailscale: Arc<Tailscale>,
     pub overlay: Option<PathBuf>,
     pub overlay_lock: Arc<tokio::sync::Mutex<()>>,
@@ -89,6 +91,7 @@ pub fn app_with_tailscale(
         client,
         catalog: Arc::new(Catalog::new(stats.clone())),
         stats,
+        tps: Arc::new(tps::TpsStore::new()),
         tailscale,
         overlay: config_path.clone(),
         overlay_lock: Arc::new(tokio::sync::Mutex::new(())),

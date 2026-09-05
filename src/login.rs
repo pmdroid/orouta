@@ -81,9 +81,5 @@ pub async fn api(State(state): State<AppState>, body: Option<Json<LoginBody>>) -
             .into_response();
     }
     let cookie = format!("{COOKIE}={matched}; HttpOnly; SameSite=Lax; Path=/");
-    (
-        [(header::SET_COOKIE, cookie)],
-        Json(json!({"ok": true})),
-    )
-        .into_response()
+    ([(header::SET_COOKIE, cookie)], Json(json!({"ok": true}))).into_response()
 }

@@ -300,7 +300,10 @@ async fn revoking_all_keys_locks_key_creation() {
     let temp: Value = res.json().await.unwrap();
     let temp_id = key_id(temp["secret"].as_str().unwrap());
     for id in [temp_id, key_id(KEY)] {
-        let res = adelete(format!("{base}/api/keys/{id}")).send().await.unwrap();
+        let res = adelete(format!("{base}/api/keys/{id}"))
+            .send()
+            .await
+            .unwrap();
         assert_eq!(res.status(), 200);
     }
     assert_eq!(

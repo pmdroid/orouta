@@ -1,6 +1,7 @@
 use crate::config::{Config, Upstream};
 use crate::health::Health;
-use crate::status::HostStats;
+use crate::status::{HostStats, VramModel, VramSnapshot};
+use crate::tps::num_u64;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -86,7 +87,7 @@ impl Catalog {
                 }
                 continue;
             }
-            if let Some(s) = host_stats {
+            if let Some(s) = &host_stats {
                 s.probe_finished(start.elapsed(), None);
             }
             let Ok(v) = resp.json::<Value>().await else {
@@ -114,6 +115,11 @@ impl Catalog {
                 }
             }
             by_host.insert(id.clone(), host_models);
+            if let Some(s) = &host_stats {
+                if let Some(vram) = fetch_vram(client, up).await {
+                    s.set_vram(vram);
+                }
+            }
         }
         let mut g = self.inner.write().await;
         if g.generation != generation {
@@ -205,4 +211,31 @@ impl Catalog {
     pub async fn has(&self, config: &Config, client: &reqwest::Client, name: &str) -> bool {
         self.lookup(config, client, name).await.is_some()
     }
+}
+
+async fn fetch_vram(client: &reqwest::Client, up: &Upstream) -> Option<VramSnapshot> {
+    let url = format!("{}/api/ps", up.base_url);
+    let mut req = client.get(&url).timeout(PROBE);
+    if let Some(key) = &up.api_key {
+        req = req.bearer_auth(key);
+    }
+    let v = req.send().await.ok()?.json::<Value>().await.ok()?;
+    let models = v.get("models")?.as_array()?;
+    let list: Vec<VramModel> = models
+        .iter()
+        .filter_map(|m| {
+            Some(VramModel {
+                name: m
+                    .get("name")
+                    .or_else(|| m.get("model"))?
+                    .as_str()?
+                    .to_string(),
+                size_vram: m.get("size_vram").and_then(num_u64)?,
+            })
+        })
+        .collect();
+    Some(VramSnapshot {
+        loaded_bytes: list.iter().map(|m| m.size_vram).sum(),
+        models: list,
+    })
 }

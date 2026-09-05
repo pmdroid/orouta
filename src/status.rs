@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::tps::round1;
 use crate::AppState;
 use axum::extract::State;
 use axum::http::header;
@@ -11,6 +12,18 @@ use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
+#[derive(Clone)]
+pub struct VramModel {
+    pub name: String,
+    pub size_vram: u64,
+}
+
+#[derive(Clone, Default)]
+pub struct VramSnapshot {
+    pub loaded_bytes: u64,
+    pub models: Vec<VramModel>,
+}
+
 #[derive(Default)]
 pub struct HostStats {
     reachable: AtomicBool,
@@ -19,6 +32,7 @@ pub struct HostStats {
     errors_total: AtomicU64,
     in_flight: AtomicI64,
     last_error: Mutex<Option<String>>,
+    vram: Mutex<Option<VramSnapshot>>,
 }
 
 impl HostStats {
@@ -86,10 +100,23 @@ impl HostStats {
             .unwrap_or_else(|p| p.into_inner())
             .clone()
     }
+
+    pub fn set_vram(&self, snapshot: VramSnapshot) {
+        *self.vram.lock().unwrap_or_else(|p| p.into_inner()) = Some(snapshot);
+    }
+
+    pub fn vram(&self) -> Option<VramSnapshot> {
+        self.vram.lock().unwrap_or_else(|p| p.into_inner()).clone()
+    }
 }
 
 fn host_models(by_host: &HashMap<String, Vec<String>>, id: &str) -> Vec<String> {
     by_host.get(id).cloned().unwrap_or_default()
+}
+
+fn gb(bytes: u64) -> String {
+    let f = bytes as f64 / (1024.0 * 1024.0 * 1024.0);
+    format!("{f:.1} GB")
 }
 
 fn ts_chip(info: Option<&crate::tailscale::TsInfo>) -> String {
@@ -148,13 +175,33 @@ pub async fn page(State(state): State<AppState>) -> Response {
         errors_total += errs;
         models_total += models.len() as u64;
         let key_bit = if up.api_key.is_some() { "set" } else { "unset" };
+        let tps_list = state.tps.per_host(id);
+        let tps_for = |m: &str| {
+            tps_list
+                .iter()
+                .find(|t| t.model == m || t.model == format!("{m}:latest"))
+        };
         let chips = if models.is_empty() {
             r#"<span class="url">&mdash;</span>"#.to_string()
         } else {
             models
                 .iter()
-                .map(|m| format!(r#"<span class="model">{}</span>"#, esc(m)))
+                .map(|m| match tps_for(m) {
+                    Some(t) => format!(
+                        r#"<span class="model">{} <span class="tps">~{:.1} tok/s</span></span>"#,
+                        esc(m),
+                        t.avg
+                    ),
+                    None => format!(r#"<span class="model">{}</span>"#, esc(m)),
+                })
                 .collect()
+        };
+        let vram_bit = match stats.vram() {
+            Some(v) => format!(
+                r#"<span class="url">vram: {}</span><br>"#,
+                gb(v.loaded_bytes)
+            ),
+            None => String::new(),
         };
         let reach = if up.disabled {
             r#"<span class="disabled-tag">DISABLED</span><br><span class="url">not probed</span>"#
@@ -191,10 +238,11 @@ pub async fn page(State(state): State<AppState>) -> Response {
         };
         let _ = write!(
             rows,
-            r#"{row_class}<td><b>{}</b><br><span class="url">{}</span><br><span class="url">api_key: {}</span><br>{}</td><td>{}</td><td class="num" data-label="models">{}</td><td class="num" data-label="requests">{}</td><td class="num" data-label="errors">{}</td><td class="num" data-label="in-flight">{}</td><td>{}</td>{}</tr>"#,
+            r#"{row_class}<td><b>{}</b><br><span class="url">{}</span><br><span class="url">api_key: {}</span><br>{}{}</td><td>{}</td><td class="num" data-label="models">{}</td><td class="num" data-label="requests">{}</td><td class="num" data-label="errors">{}</td><td class="num" data-label="in-flight">{}</td><td>{}</td>{}</tr>"#,
             esc(id),
             esc(&up.base_url),
             key_bit,
+            vram_bit,
             chips,
             reach,
             models.len(),
@@ -293,6 +341,7 @@ pub async fn hosts_payload(state: &AppState, config: &Config) -> Vec<Value> {
         .filter_map(|id| {
             let up = config.upstreams.get(id)?;
             let stats = state.stats_for(id);
+            let tps = state.tps.per_host(id);
             Some(json!({
                 "id": id,
                 "base_url": up.base_url,
@@ -305,6 +354,26 @@ pub async fn hosts_payload(state: &AppState, config: &Config) -> Vec<Value> {
                 "errors_total": stats.errors_total(),
                 "in_flight": stats.in_flight(),
                 "last_error": stats.last_error(),
+                "tps": tps
+                    .iter()
+                    .map(|t| json!({
+                        "model": t.model,
+                        "avg": round1(t.avg),
+                        "last": round1(t.last),
+                        "prompt": t.prompt.map(round1),
+                        "samples": t.samples,
+                    }))
+                    .collect::<Vec<_>>(),
+                "vram": stats.vram().map(|v| {
+                    json!({
+                        "loaded_bytes": v.loaded_bytes,
+                        "models": v
+                            .models
+                            .iter()
+                            .map(|m| json!({"name": m.name, "size_vram": m.size_vram}))
+                            .collect::<Vec<_>>(),
+                    })
+                }),
             }))
         })
         .collect()
@@ -394,6 +463,7 @@ pub(crate) const STYLE: &str = r#"
   .dot.down { background: var(--bad); }
   .err { color: var(--bad); font-size: 12px; overflow-wrap: anywhere; }
   .model { display: inline-block; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; margin: 2px 4px 2px 0; font-size: 12px; color: var(--text); }
+  .tps { color: var(--muted); font-size: 11px; }
   .ts { display: inline-block; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; margin-left: 12px; font-size: 12px; }
   .ts b { color: var(--accent); letter-spacing: 0.06em; }
   .ts.dim { color: var(--muted); }
