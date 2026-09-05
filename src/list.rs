@@ -5,10 +5,7 @@ use axum::Json;
 use serde_json::json;
 
 pub async fn tags(state: &AppState) -> Response {
-    let body = state
-        .catalog
-        .tags_body(&state.config, &state.client)
-        .await;
+    let body = state.catalog.tags_body(&state.config, &state.client).await;
     Json(body).into_response()
 }
 

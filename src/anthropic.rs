@@ -175,10 +175,14 @@ async fn complete_chat(
     if let Some(key) = &upstream.api_key {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {key}"));
     }
+    let stats = &state.stats[&upstream.id];
+    stats.request_started();
+    let start = std::time::Instant::now();
     let resp = match builder.send().await {
         Ok(r) => r,
         Err(e) => {
             tracing::error!(error = %e, "upstream");
+            stats.request_finished(start.elapsed(), Some(e.to_string()));
             return (
                 StatusCode::BAD_GATEWAY,
                 Json(json!({"error": "upstream unavailable"})),
@@ -187,11 +191,16 @@ async fn complete_chat(
         }
     };
     if !resp.status().is_success() {
+        stats.request_finished(
+            start.elapsed(),
+            Some(format!("http {}", resp.status().as_u16())),
+        );
         return proxy::pipe_response(resp).await;
     }
     let ollama: Value = match resp.json().await {
         Ok(v) => v,
         Err(_) => {
+            stats.request_finished(start.elapsed(), Some("upstream invalid json".to_string()));
             return (
                 StatusCode::BAD_GATEWAY,
                 Json(json!({"error": "upstream invalid json"})),
@@ -199,6 +208,7 @@ async fn complete_chat(
                 .into_response();
         }
     };
+    stats.request_finished(start.elapsed(), None);
     let text = ollama
         .pointer("/message/content")
         .and_then(|v| v.as_str())
@@ -244,10 +254,14 @@ async fn stream_chat(
     if let Some(key) = &upstream.api_key {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {key}"));
     }
+    let stats = &state.stats[&upstream.id];
+    stats.request_started();
+    let start = std::time::Instant::now();
     let resp = match builder.send().await {
         Ok(r) => r,
         Err(e) => {
             tracing::error!(error = %e, "upstream");
+            stats.request_finished(start.elapsed(), Some(e.to_string()));
             return (
                 StatusCode::BAD_GATEWAY,
                 Json(json!({"error": "upstream unavailable"})),
@@ -256,8 +270,13 @@ async fn stream_chat(
         }
     };
     if !resp.status().is_success() {
+        stats.request_finished(
+            start.elapsed(),
+            Some(format!("http {}", resp.status().as_u16())),
+        );
         return proxy::pipe_response(resp).await;
     }
+    stats.request_finished(start.elapsed(), None);
     let id = format!("msg_orouta_{}", uuid::Uuid::new_v4());
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Bytes, std::io::Error>>(32);
     tokio::spawn(async move {

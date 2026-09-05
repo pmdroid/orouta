@@ -1,6 +1,8 @@
 use crate::config::{Config, Upstream};
+use crate::status::HostStats;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
@@ -9,27 +11,32 @@ const PROBE: Duration = Duration::from_secs(2);
 
 pub struct Catalog {
     inner: RwLock<Inner>,
+    stats: Arc<HashMap<String, HostStats>>,
 }
 
 struct Inner {
     by_name: HashMap<String, String>,
+    by_host: HashMap<String, Vec<Value>>,
     tags: Vec<Value>,
     fetched: Option<Instant>,
 }
 
 impl Catalog {
-    pub fn new() -> Self {
+    pub fn new(stats: Arc<HashMap<String, HostStats>>) -> Self {
         Self {
             inner: RwLock::new(Inner {
                 by_name: HashMap::new(),
+                by_host: HashMap::new(),
                 tags: Vec::new(),
                 fetched: None,
             }),
+            stats,
         }
     }
 
     pub async fn refresh(&self, config: &Config, client: &reqwest::Client) {
         let mut by_name = HashMap::new();
+        let mut by_host: HashMap<String, Vec<Value>> = HashMap::new();
         let mut tags = Vec::new();
         for id in &config.upstream_order {
             let Some(up) = config.upstreams.get(id) else {
@@ -40,11 +47,28 @@ impl Catalog {
             if let Some(key) = &up.api_key {
                 req = req.bearer_auth(key);
             }
-            let Ok(resp) = req.send().await else {
-                continue;
+            let host_stats = self.stats.get(id);
+            let start = Instant::now();
+            let resp = match req.send().await {
+                Ok(r) => r,
+                Err(e) => {
+                    if let Some(s) = host_stats {
+                        s.probe_finished(start.elapsed(), Some(e.to_string()));
+                    }
+                    continue;
+                }
             };
             if !resp.status().is_success() {
+                if let Some(s) = host_stats {
+                    s.probe_finished(
+                        start.elapsed(),
+                        Some(format!("tags http {}", resp.status().as_u16())),
+                    );
+                }
                 continue;
+            }
+            if let Some(s) = host_stats {
+                s.probe_finished(start.elapsed(), None);
             }
             let Ok(v) = resp.json::<Value>().await else {
                 continue;
@@ -52,7 +76,9 @@ impl Catalog {
             let Some(models) = v.get("models").and_then(|m| m.as_array()) else {
                 continue;
             };
+            let mut host_models = Vec::new();
             for m in models {
+                host_models.push(m.clone());
                 let Some(name) = m
                     .get("name")
                     .or_else(|| m.get("model"))
@@ -68,9 +94,11 @@ impl Catalog {
                     by_name.entry(stem.to_string()).or_insert(id.clone());
                 }
             }
+            by_host.insert(id.clone(), host_models);
         }
         let mut g = self.inner.write().await;
         g.by_name = by_name;
+        g.by_host = by_host;
         g.tags = tags;
         g.fetched = Some(Instant::now());
     }
@@ -117,6 +145,31 @@ impl Catalog {
                     .or_else(|| m.get("model"))
                     .and_then(|x| x.as_str())
                     .map(str::to_string)
+            })
+            .collect()
+    }
+
+    pub async fn model_names_by_host(
+        &self,
+        config: &Config,
+        client: &reqwest::Client,
+    ) -> HashMap<String, Vec<String>> {
+        self.ensure(config, client, false).await;
+        let g = self.inner.read().await;
+        g.by_host
+            .iter()
+            .map(|(id, ms)| {
+                (
+                    id.clone(),
+                    ms.iter()
+                        .filter_map(|m| {
+                            m.get("name")
+                                .or_else(|| m.get("model"))
+                                .and_then(|x| x.as_str())
+                                .map(str::to_string)
+                        })
+                        .collect(),
+                )
             })
             .collect()
     }
