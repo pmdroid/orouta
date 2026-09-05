@@ -307,6 +307,17 @@ mod tests {
     }
 
     #[test]
+    fn strip_latest_matches_model_names_in_both_directions() {
+        use crate::status::strip_latest;
+
+        assert_eq!(strip_latest("llama3"), "llama3");
+        assert_eq!(strip_latest("llama3:latest"), "llama3");
+        assert_eq!(strip_latest("llama3:latest:latest"), "llama3:latest");
+        assert_eq!(strip_latest("llama3"), strip_latest("llama3:latest"));
+        assert_eq!(strip_latest("llama3:latest"), strip_latest("llama3"));
+    }
+
+    #[test]
     fn window_caps_at_50_samples() {
         let store = TpsStore::new();
         for _ in 0..60 {

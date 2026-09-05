@@ -105,6 +105,10 @@ impl HostStats {
         *self.vram.lock().unwrap_or_else(|p| p.into_inner()) = Some(snapshot);
     }
 
+    pub fn clear_vram(&self) {
+        *self.vram.lock().unwrap_or_else(|p| p.into_inner()) = None;
+    }
+
     pub fn vram(&self) -> Option<VramSnapshot> {
         self.vram.lock().unwrap_or_else(|p| p.into_inner()).clone()
     }
@@ -112,6 +116,10 @@ impl HostStats {
 
 fn host_models(by_host: &HashMap<String, Vec<String>>, id: &str) -> Vec<String> {
     by_host.get(id).cloned().unwrap_or_default()
+}
+
+pub(crate) fn strip_latest(model: &str) -> &str {
+    model.strip_suffix(":latest").unwrap_or(model)
 }
 
 fn gb(bytes: u64) -> String {
@@ -179,7 +187,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
         let tps_for = |m: &str| {
             tps_list
                 .iter()
-                .find(|t| t.model == m || t.model == format!("{m}:latest"))
+                .find(|t| strip_latest(&t.model) == strip_latest(m))
         };
         let chips = if models.is_empty() {
             r#"<span class="url">&mdash;</span>"#.to_string()
