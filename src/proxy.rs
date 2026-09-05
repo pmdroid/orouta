@@ -11,6 +11,7 @@ use futures_util::StreamExt;
 use serde_json::json;
 
 pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Response {
+    let config = state.config.load();
     let method = req.method().clone();
     let uri = req.uri().clone();
     let headers = req.headers().clone();
@@ -50,11 +51,7 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
     }
     let name = model::extract_name(&body);
     if let Some(name) = name {
-        if let Some(upstream) = state
-            .catalog
-            .lookup(&state.config, &state.client, &name)
-            .await
-        {
+        if let Some(upstream) = state.catalog.lookup(&config, &state.client, &name).await {
             if let Some(res) = host_down_response(&state, &upstream).await {
                 return res;
             }
@@ -62,22 +59,15 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
         }
         return unknown_model_response(&state).await;
     }
-    forward(
-        &state,
-        method,
-        &pq,
-        &headers,
-        body,
-        state.config.first_upstream(),
-    )
-    .await
+    forward(&state, method, &pq, &headers, body, config.first_upstream()).await
 }
 
 pub async fn host_down_response(state: &AppState, upstream: &Upstream) -> Option<Response> {
     if state.catalog.health.is_up(&upstream.id).await {
         return None;
     }
-    state.catalog.refresh(&state.config, &state.client).await;
+    let config = state.config.load();
+    state.catalog.refresh(&config, &state.client).await;
     if state.catalog.health.is_up(&upstream.id).await {
         return None;
     }
@@ -91,10 +81,11 @@ pub async fn host_down_response(state: &AppState, upstream: &Upstream) -> Option
 }
 
 pub async fn unknown_model_response(state: &AppState) -> Response {
+    let config = state.config.load();
     if let Some(id) = state
         .catalog
         .health
-        .first_down(&state.config.upstream_order)
+        .first_down(&config.upstream_order)
         .await
     {
         return (
@@ -117,11 +108,12 @@ async fn forward_copy(
     headers: &HeaderMap,
     body: Bytes,
 ) -> Response {
+    let config = state.config.load();
     let (source, dest) = model::copy_names(&body);
     let su = match &source {
         Some(n) => state
             .catalog
-            .lookup(&state.config, &state.client, n)
+            .lookup(&config, &state.client, n)
             .await
             .map(|u| u.id),
         None => None,
@@ -129,7 +121,7 @@ async fn forward_copy(
     let du = match &dest {
         Some(n) => state
             .catalog
-            .lookup(&state.config, &state.client, n)
+            .lookup(&config, &state.client, n)
             .await
             .map(|u| u.id),
         None => None,
@@ -142,9 +134,9 @@ async fn forward_copy(
             )
                 .into_response();
         }
-        (Some(a), Some(_)) => state.config.upstreams[&a].clone(),
-        (Some(a), None) => state.config.upstreams[&a].clone(),
-        (None, Some(b)) => state.config.upstreams[&b].clone(),
+        (Some(a), Some(_)) => config.upstreams[&a].clone(),
+        (Some(a), None) => config.upstreams[&a].clone(),
+        (None, Some(b)) => config.upstreams[&b].clone(),
         _ => {
             return (
                 StatusCode::NOT_FOUND,
@@ -180,7 +172,7 @@ pub async fn forward(
     if let Some(key) = &upstream.api_key {
         builder = builder.header(reqwest::header::AUTHORIZATION, format!("Bearer {key}"));
     }
-    let stats = &state.stats[&upstream.id];
+    let stats = state.stats_for(&upstream.id);
     stats.request_started();
     let start = std::time::Instant::now();
     match builder.send().await {

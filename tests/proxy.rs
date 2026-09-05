@@ -55,7 +55,7 @@ async fn start(home: &str, desk: &str, keys: &str, home_api_key: &str) -> String
     let cfg = orouta::Config::parse(&toml_for(home, desk, keys, home_api_key)).unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let app = orouta::app(Arc::new(cfg), reqwest::Client::new());
+    let app = orouta::app(Arc::new(cfg), reqwest::Client::new(), None);
     tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
     });

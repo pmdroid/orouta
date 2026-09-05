@@ -11,7 +11,7 @@ pub struct Config {
     pub upstream_order: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Upstream {
     pub id: String,
     pub base_url: String,

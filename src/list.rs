@@ -5,12 +5,14 @@ use axum::Json;
 use serde_json::json;
 
 pub async fn tags(state: &AppState) -> Response {
-    let body = state.catalog.tags_body(&state.config, &state.client).await;
+    let config = state.config.load();
+    let body = state.catalog.tags_body(&config, &state.client).await;
     Json(body).into_response()
 }
 
 pub async fn openai_models(state: &AppState) -> Response {
-    let names = state.catalog.names(&state.config, &state.client).await;
+    let config = state.config.load();
+    let names = state.catalog.names(&config, &state.client).await;
     let data: Vec<_> = names
         .iter()
         .map(|n| json!({"id": n, "object": "model", "owned_by": "orouta"}))
@@ -19,7 +21,8 @@ pub async fn openai_models(state: &AppState) -> Response {
 }
 
 pub async fn openai_model(state: &AppState, id: &str) -> Response {
-    if state.catalog.has(&state.config, &state.client, id).await {
+    let config = state.config.load();
+    if state.catalog.has(&config, &state.client, id).await {
         Json(json!({"id": id, "object": "model", "owned_by": "orouta"})).into_response()
     } else {
         (

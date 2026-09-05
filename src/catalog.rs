@@ -12,7 +12,7 @@ const PROBE: Duration = Duration::from_secs(2);
 
 pub struct Catalog {
     inner: RwLock<Inner>,
-    stats: Arc<HashMap<String, HostStats>>,
+    stats: Arc<std::sync::RwLock<HashMap<String, Arc<HostStats>>>>,
     pub health: Arc<Health>,
 }
 
@@ -21,23 +21,32 @@ struct Inner {
     by_host: HashMap<String, Vec<Value>>,
     tags: Vec<Value>,
     fetched: Option<Instant>,
+    generation: u64,
 }
 
 impl Catalog {
-    pub fn new(stats: Arc<HashMap<String, HostStats>>) -> Self {
+    pub fn new(stats: Arc<std::sync::RwLock<HashMap<String, Arc<HostStats>>>>) -> Self {
         Self {
             inner: RwLock::new(Inner {
                 by_name: HashMap::new(),
                 by_host: HashMap::new(),
                 tags: Vec::new(),
                 fetched: None,
+                generation: 0,
             }),
             stats,
             health: Arc::new(Health::new()),
         }
     }
 
+    pub async fn reset(&self) {
+        let mut g = self.inner.write().await;
+        g.generation += 1;
+        g.fetched = None;
+    }
+
     pub async fn refresh(&self, config: &Config, client: &reqwest::Client) {
+        let generation = self.inner.read().await.generation;
         let mut by_name = HashMap::new();
         let mut by_host: HashMap<String, Vec<Value>> = HashMap::new();
         let mut tags = Vec::new();
@@ -50,7 +59,7 @@ impl Catalog {
             if let Some(key) = &up.api_key {
                 req = req.bearer_auth(key);
             }
-            let host_stats = self.stats.get(id);
+            let host_stats = self.stats.read().ok().and_then(|m| m.get(id).cloned());
             let start = Instant::now();
             let resp = match req.send().await {
                 Ok(r) => {
@@ -104,6 +113,9 @@ impl Catalog {
             by_host.insert(id.clone(), host_models);
         }
         let mut g = self.inner.write().await;
+        if g.generation != generation {
+            return;
+        }
         g.by_name = by_name;
         g.by_host = by_host;
         g.tags = tags;
