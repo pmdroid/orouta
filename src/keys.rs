@@ -40,7 +40,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
             String::new(),
         ),
     };
-    let create_panel = if state.config.load().raw_keys.is_empty() {
+    let create_panel = if state.config.load().keys.is_empty() {
         r#"<p class="url" style="margin:14px 0 0">Key management is locked &mdash; configure <span style="color:var(--text)">[auth].keys</span> in orouta.toml first. A proxy without keys is open and can't be administered remotely.</p>"#.to_string()
     } else {
         r#"<div class="row" style="margin-top:14px">
@@ -223,7 +223,7 @@ fn overlay_target(state: &AppState) -> Result<&std::path::Path, Box<Response>> {
 }
 
 fn open_proxy(state: &AppState) -> Option<Response> {
-    if state.config.load().raw_keys.is_empty() {
+    if state.config.load().keys.is_empty() {
         return Some(
             (
                 StatusCode::FORBIDDEN,
