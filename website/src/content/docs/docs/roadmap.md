@@ -14,7 +14,7 @@ description: What you can do today, and what might show up next.
 ## Next
 
 - [ ] A small web page: which host, which model, errors, how busy
-- [ ] `ollama pull` through orouta onto a machine you choose
+- [x] `ollama pull` through orouta onto a machine you choose
 - [ ] See when a host is down instead of a silent miss
 - [ ] Change the TOML without restarting
 - [ ] HTTPS, or a short guide to put Caddy/nginx in front
