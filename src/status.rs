@@ -402,6 +402,7 @@ pub(crate) const STYLE: &str = r#"
   nav a { color: var(--muted); }
   nav a.active { color: var(--accent); }
   .reveal { border: 1px solid var(--accent); border-radius: 6px; padding: 12px 14px; margin-bottom: 14px; overflow: hidden; }
+  .reveal:empty { display: none; }
   .reveal b { display: block; margin-bottom: 6px; font-size: 13px; }
   .reveal code { background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; font-size: 12px; word-break: break-all; }
   .reveal .btn { float: right; margin-left: 12px; background: var(--accent); color: var(--bg); border: none; border-radius: 4px; font: inherit; font-weight: 600; font-size: 12px; padding: 5px 12px; cursor: pointer; }
