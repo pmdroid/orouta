@@ -33,7 +33,9 @@ async fn main() {
     };
     let bind = config.listen_addr();
     let client = reqwest::Client::new();
-    let app = orouta::app(Arc::new(config), client, Some(path));
+    let tailscale = Arc::new(orouta::Tailscale::new());
+    tailscale.spawn_refresh(&client);
+    let app = orouta::app_with_tailscale(Arc::new(config), client, Some(path), tailscale);
     let listener = match tokio::net::TcpListener::bind(&bind).await {
         Ok(l) => l,
         Err(e) => {

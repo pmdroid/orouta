@@ -8,10 +8,12 @@ mod model;
 mod proxy;
 mod reload;
 mod status;
+mod tailscale;
 
 pub use config::Config;
 pub use health::Health;
 pub use status::HostStats;
+pub use tailscale::{Tailscale, TsInfo};
 
 use crate::catalog::Catalog;
 use arc_swap::ArcSwap;
@@ -31,6 +33,7 @@ pub struct AppState {
     pub client: reqwest::Client,
     pub catalog: Arc<Catalog>,
     pub stats: Arc<RwLock<HashMap<String, Arc<HostStats>>>>,
+    pub tailscale: Arc<Tailscale>,
 }
 
 impl AppState {
@@ -48,7 +51,20 @@ impl AppState {
     }
 }
 
-pub fn app(config: Arc<Config>, client: reqwest::Client, config_path: Option<PathBuf>) -> Router {
+pub fn app(
+    config: Arc<Config>,
+    client: reqwest::Client,
+    config_path: Option<PathBuf>,
+) -> Router {
+    app_with_tailscale(config, client, config_path, Arc::new(Tailscale::new()))
+}
+
+pub fn app_with_tailscale(
+    config: Arc<Config>,
+    client: reqwest::Client,
+    config_path: Option<PathBuf>,
+    tailscale: Arc<Tailscale>,
+) -> Router {
     let stats: HashMap<String, Arc<HostStats>> = config
         .upstream_order
         .iter()
@@ -60,6 +76,7 @@ pub fn app(config: Arc<Config>, client: reqwest::Client, config_path: Option<Pat
         client,
         catalog: Arc::new(Catalog::new(stats.clone())),
         stats,
+        tailscale,
     };
     if let Some(path) = config_path {
         reload::spawn(path, state.clone());
