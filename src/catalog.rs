@@ -73,6 +73,7 @@ impl Catalog {
                 Err(e) => {
                     self.health.record_error(id, e.to_string()).await;
                     if let Some(s) = host_stats {
+                        s.clear_vram();
                         s.probe_finished(start.elapsed(), Some(e.to_string()));
                     }
                     continue;
@@ -80,6 +81,7 @@ impl Catalog {
             };
             if !resp.status().is_success() {
                 if let Some(s) = host_stats {
+                    s.clear_vram();
                     s.probe_finished(
                         start.elapsed(),
                         Some(format!("tags http {}", resp.status().as_u16())),

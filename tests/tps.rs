@@ -198,3 +198,48 @@ async fn vram_snapshot_in_status_json() {
     assert_eq!(home_vram["models"][0]["size_vram"], 7801585920u64);
     assert_eq!(host(&v, "desk")["vram"], Value::Null);
 }
+
+#[tokio::test]
+async fn vram_cleared_when_tags_fetch_fails() {
+    let home = MockServer::start().await;
+    let desk = MockServer::start().await;
+    let base = serve(&home, &desk).await;
+    Mock::given(method("GET"))
+        .and(path("/api/ps"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "models": [
+                {"name": "gemma4:e2b", "size": 7801585920u64, "size_vram": 7801585920u64}
+            ]
+        })))
+        .mount(&home)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/tags"))
+        .respond_with(ResponseTemplate::new(500))
+        .with_priority(2)
+        .mount(&home)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/tags"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "models": [{"name": "llama3:latest", "model": "llama3:latest"}]
+        })))
+        .with_priority(1)
+        .up_to_n_times(1)
+        .mount(&home)
+        .await;
+
+    let v = get_status_json(&base).await;
+    assert_eq!(host(&v, "home")["vram"]["loaded_bytes"], 7801585920u64);
+
+    client()
+        .post(format!("{base}/api/chat"))
+        .header("Authorization", format!("Bearer {KEY}"))
+        .json(&json!({"model": "no-such-model", "messages": []}))
+        .send()
+        .await
+        .unwrap();
+
+    let v = get_status_json(&base).await;
+    assert_eq!(host(&v, "home")["vram"], Value::Null);
+}
