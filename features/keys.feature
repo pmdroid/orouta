@@ -56,6 +56,7 @@ Feature: manage api keys from the UI
     When DELETE /api/keys/{id of the TOML key}
     Then the response status is 200
     And the proxy is open until a new key is configured
+    And POST /api/keys without a key returns 403
 
   Scenario: mutations refuse an open proxy
     Given auth.keys is empty

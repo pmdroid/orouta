@@ -6,6 +6,7 @@ mod health;
 mod hosts;
 mod keys;
 mod list;
+mod login;
 mod model;
 mod overlay;
 mod proxy;
@@ -99,7 +100,10 @@ pub fn app_with_tailscale(
     Router::new()
         .route("/status", get(status::page))
         .route("/status.json", get(status::json))
+        .route("/logo.png", get(status::logo))
         .route("/keys", get(keys::page))
+        .route("/login", get(login::page))
+        .route("/api/login", post(login::api))
         .route("/api/keys", post(keys::create))
         .route("/api/keys/{id}", delete(keys::revoke))
         .route("/api/hosts", post(hosts::add))

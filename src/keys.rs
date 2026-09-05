@@ -40,6 +40,15 @@ pub async fn page(State(state): State<AppState>) -> Response {
             String::new(),
         ),
     };
+    let create_panel = if state.config.load().keys.is_empty() {
+        r#"<p class="url" style="margin:14px 0 0">Key management is locked &mdash; configure <span style="color:var(--text)">[auth].keys</span> in orouta.toml first. A proxy without keys is open and can't be administered remotely.</p>"#.to_string()
+    } else {
+        r#"<div class="row" style="margin-top:14px">
+<label>label<input type="text" id="new-label"></label>
+<button class="btn" onclick="createKey(event)">Create key</button>
+</div>"#
+            .to_string()
+    };
     let html = format!(
         r#"<!doctype html>
 <html lang="en">
@@ -51,22 +60,19 @@ pub async fn page(State(state): State<AppState>) -> Response {
 </head>
 <body>
 <div class="wrap">
-<header><h1>orouta <span>/ api keys</span></h1><nav><a href="/status">hosts</a> &middot; <a href="/keys" class="active">api keys</a></nav></header>
+<header><img class="logo" src="/logo.png" alt="orouta"><h1><span>/ api keys</span></h1><nav><a href="/status">hosts</a> &middot; <a href="/keys" class="active">api keys</a></nav></header>
 <p class="sub">keys authorize everything the proxy can do &middot; revoked keys stop working on the next request</p>
 {banner}
 <div class="add" style="margin-top:0">
 <h2>API keys</h2>
-<div id="reveal"></div>
+<div id="reveal" class="reveal"></div>
 <table>
 <thead><tr><th>Label</th><th>Key</th><th>Created</th><th>Last used</th><th></th></tr></thead>
 <tbody id="key-rows">
 {rows_html}
 </tbody>
 </table>
-<div class="row" style="margin-top:14px">
-<label>label<input type="text" id="new-label"></label>
-<button class="btn" onclick="createKey(event)">Create key</button>
-</div>
+{create_panel}
 </div>
 <script>
 function renderKeys(keys) {{
@@ -76,7 +82,7 @@ function renderKeys(keys) {{
     var tr = document.createElement('tr');
     tr.innerHTML = '<td><span class="klabel"></span></td><td><span class="kprefix"></span></td><td><span class="ktime"></span></td><td><span class="ktime"></span></td><td><button class="revoke">revoke</button></td>';
     tr.children[0].firstChild.textContent = k.label;
-    tr.children[1].firstChild.textContent = k.prefix + '\\u2026';
+    tr.children[1].firstChild.textContent = k.prefix + '\u2026';
     tr.children[2].firstChild.textContent = k.created;
     tr.children[3].firstChild.textContent = k.last_used;
     var btn = tr.querySelector('button');
@@ -93,7 +99,7 @@ function createKey(e) {{
       if (!r.ok) {{ r.text().then(function(t) {{ alert('create failed: ' + r.status + ' ' + t); }}); return; }}
       r.json().then(function(v) {{
         var el = document.getElementById('reveal');
-        el.innerHTML = '<button class="btn" onclick="copySecret(this)">copy</button><b>New key created &mdash; copy it now, it won\\'t be shown again</b><code></code>';
+        el.innerHTML = '<button class="btn" onclick="copySecret(this)">copy</button><b>New key created &mdash; copy it now, it won&#8217;t be shown again</b><code></code>';
         el.querySelector('code').textContent = v.secret;
         renderKeys(v.keys);
         document.getElementById('new-label').value = '';
@@ -217,7 +223,7 @@ fn overlay_target(state: &AppState) -> Result<&std::path::Path, Box<Response>> {
 }
 
 fn open_proxy(state: &AppState) -> Option<Response> {
-    if state.config.load().raw_keys.is_empty() {
+    if state.config.load().keys.is_empty() {
         return Some(
             (
                 StatusCode::FORBIDDEN,

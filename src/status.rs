@@ -114,6 +114,14 @@ pub(crate) fn esc(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+pub async fn logo() -> Response {
+    (
+        [(header::CONTENT_TYPE, "image/png")],
+        include_bytes!("../docs/favicons/icon-192.png").as_slice(),
+    )
+        .into_response()
+}
+
 pub async fn page(State(state): State<AppState>) -> Response {
     let config = state.config.load();
     state.tailscale.spawn_refresh_if_stale(&state.client);
@@ -171,15 +179,19 @@ pub async fn page(State(state): State<AppState>) -> Response {
         } else {
             "<tr>"
         };
-        let actions = format!(
-            r#"<span class="actions"><label class="switch"><input type="checkbox" {checked} data-id="{id}" onchange="hostAction(this,'{action}')"><span class="slider"></span></label><button class="remove" data-id="{id}" onclick="hostRemove(this)">remove</button></span>"#,
-            id = esc(id),
-            checked = if up.disabled { "" } else { "checked" },
-            action = if up.disabled { "enable" } else { "disable" },
-        );
+        let actions = if config.raw_keys.is_empty() {
+            String::new()
+        } else {
+            format!(
+                r#"<td><span class="actions"><label class="switch"><input type="checkbox" {checked} data-id="{id}" onchange="hostAction(this,'{action}')"><span class="slider"></span></label><button class="remove" data-id="{id}" onclick="hostRemove(this)">remove</button></span></td>"#,
+                id = esc(id),
+                checked = if up.disabled { "" } else { "checked" },
+                action = if up.disabled { "enable" } else { "disable" },
+            )
+        };
         let _ = write!(
             rows,
-            r#"{row_class}<td><b>{}</b><br><span class="url">{}</span><br><span class="url">api_key: {}</span><br>{}</td><td>{}</td><td class="num" data-label="models">{}</td><td class="num" data-label="requests">{}</td><td class="num" data-label="errors">{}</td><td class="num" data-label="in-flight">{}</td><td>{}</td><td>{}</td></tr>"#,
+            r#"{row_class}<td><b>{}</b><br><span class="url">{}</span><br><span class="url">api_key: {}</span><br>{}</td><td>{}</td><td class="num" data-label="models">{}</td><td class="num" data-label="requests">{}</td><td class="num" data-label="errors">{}</td><td class="num" data-label="in-flight">{}</td><td>{}</td>{}</tr>"#,
             esc(id),
             esc(&up.base_url),
             key_bit,
@@ -194,6 +206,22 @@ pub async fn page(State(state): State<AppState>) -> Response {
         );
     }
     let n_hosts = config.upstream_order.len();
+    let locked = config.raw_keys.is_empty();
+    let actions_head = if locked { "" } else { "<th>Actions</th>" };
+    let add_panel = if locked {
+        r#"<div class="add"><h2>Management locked</h2><p class="url" style="margin:0">This proxy has no API keys configured, so it can't be administered remotely. Add keys under <span style="color:var(--text)">[auth].keys</span> in orouta.toml to enable host management.</p></div>"#.to_string()
+    } else {
+        r#"<div class="add">
+<h2>Add host</h2>
+<div class="row">
+<label>id<input type="text" id="add-id"></label>
+<label>base_url<input type="text" id="add-url"></label>
+<label>api_key (optional)<input type="password" id="add-key"></label>
+<button class="btn" onclick="hostAdd(event)">Add</button>
+</div>
+</div>"#
+            .to_string()
+    };
     let html = format!(
         r#"<!doctype html>
 <html lang="en">
@@ -206,7 +234,7 @@ pub async fn page(State(state): State<AppState>) -> Response {
 </head>
 <body>
 <div class="wrap">
-<header><h1>orouta <span>/ status</span></h1><nav><a href="/status" class="active">hosts</a> &middot; <a href="/keys">api keys</a></nav></header>
+<header><img class="logo" src="/logo.png" alt="orouta"><h1><span>/ status</span></h1><nav><a href="/status" class="active">hosts</a> &middot; <a href="/keys">api keys</a></nav></header>
 <p class="sub">{n_hosts} hosts &middot; reloaded every 15s &middot; <a href="/status.json">JSON</a>{ts_line}</p>
 <div class="summary">
 <div class="stat"><b>{hosts_up}/{n_hosts}</b><small>hosts up</small></div>
@@ -215,20 +243,12 @@ pub async fn page(State(state): State<AppState>) -> Response {
 <div class="stat"><b>{errors_total}</b><small>errors</small></div>
 </div>
 <table>
-<thead><tr><th>Host</th><th>Reachable</th><th class="num">Models</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">In-flight</th><th>Last error</th><th>Actions</th></tr></thead>
+<thead><tr><th>Host</th><th>Reachable</th><th class="num">Models</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">In-flight</th><th>Last error</th>{actions_head}</tr></thead>
 <tbody>
 {rows}
 </tbody>
 </table>
-<div class="add">
-<h2>Add host</h2>
-<div class="row">
-<label>id<input type="text" id="add-id"></label>
-<label>base_url<input type="text" id="add-url"></label>
-<label>api_key (optional)<input type="password" id="add-key"></label>
-<button class="btn" onclick="hostAdd(event)">Add</button>
-</div>
-</div>
+{add_panel}
 <script>
 function hostAction(el, action) {{
   fetch('/api/hosts/' + encodeURIComponent(el.dataset.id) + '/' + action, {{method: 'POST'}})
@@ -344,6 +364,7 @@ pub(crate) const STYLE: &str = r#"
   }
   .wrap { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
   header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+  .logo { height: 36px; width: auto; align-self: center; }
   h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: 0.02em; }
   h1 span { color: var(--accent); }
   .sub { color: var(--muted); margin: 0 0 24px; }
@@ -371,7 +392,7 @@ pub(crate) const STYLE: &str = r#"
   .down { color: var(--bad); }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--ok); }
   .dot.down { background: var(--bad); }
-  .err { color: var(--bad); font-size: 12px; }
+  .err { color: var(--bad); font-size: 12px; overflow-wrap: anywhere; }
   .model { display: inline-block; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; margin: 2px 4px 2px 0; font-size: 12px; color: var(--text); }
   .ts { display: inline-block; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; margin-left: 12px; font-size: 12px; }
   .ts b { color: var(--accent); letter-spacing: 0.06em; }
@@ -430,7 +451,7 @@ pub(crate) const STYLE: &str = r#"
     td { border: none; padding: 2px 12px; }
     tr td:nth-child(1) { flex: 1 1 100%; order: 1; }
     tr td:nth-child(2) { flex: 0 1 34%; order: 2; margin-top: 4px; }
-    tr td:nth-child(7) { flex: 1 1 60%; order: 3; margin-top: 4px; }
+    tr td:nth-child(7) { flex: 1 1 100%; order: 3; margin-top: 4px; }
     tr td:nth-child(8) { flex: 1 1 100%; order: 5; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
     td.num { flex: 1 1 25%; order: 4; text-align: center; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
     .num::before { content: attr(data-label); display: block; color: var(--muted); font-size: 11px; letter-spacing: 0.06em; margin-right: 0; margin-bottom: 2px; }

@@ -289,6 +289,34 @@ async fn open_proxy_refuses_key_mutations() {
 }
 
 #[tokio::test]
+async fn revoking_all_keys_locks_key_creation() {
+    let (base, _dir) = start(&[KEY]).await;
+    let res = apost(format!("{base}/api/keys"))
+        .json(&json!({"label": "temp"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let temp: Value = res.json().await.unwrap();
+    let temp_id = key_id(temp["secret"].as_str().unwrap());
+    for id in [temp_id, key_id(KEY)] {
+        let res = adelete(format!("{base}/api/keys/{id}")).send().await.unwrap();
+        assert_eq!(res.status(), 200);
+    }
+    assert_eq!(
+        status_code(client().get(format!("{base}/status.json"))).await,
+        200
+    );
+    let res = client()
+        .post(format!("{base}/api/keys"))
+        .json(&json!({"label": "backdoor"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 403);
+}
+
+#[tokio::test]
 async fn corrupt_overlay_shows_error_banner() {
     let (base, dir) = start(&[KEY]).await;
     std::fs::write(overlay_path(&dir), "{not json").unwrap();
